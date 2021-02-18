@@ -8,7 +8,7 @@
 //! their Hexchat client, but other's in the channel only see the translated
 //! text.
 //!
-//! The addon provides the following commands:
+//! # The addon provides the following commands
 //! 
 //! * `/LISTLANG` - Lists the names and 2 character codes for all the supported 
 //!                 languages. The names or codes can be used to turn on 
@@ -19,6 +19,9 @@
 //!                 outgoing translations. Without using this command, the 
 //!                 user's messages are sent normally. With the command they're
 //!                 translated and sent to the channel.
+//! * `/LME`      - A translator version of the `/ME` command.
+//! * `/OFFLANG`  - Turns translation off in the current window.
+//!
 
 use std::any::Any;
 use std::cell::RefCell;
