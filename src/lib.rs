@@ -32,6 +32,7 @@ use std::thread;
 
 use hexchat_api::*;
 use UserData::*;
+use StripFlags::*;
 
 dll_entry_points!(plugin_info, plugin_init, plugin_deinit);
 
@@ -256,10 +257,7 @@ fn on_cmd_lsay(hc        : &Hexchat,
                                     })
                                     .expect("Couldn't downcast user data in \
                                              LSAY/LME!");
-        
-    //hc.print(&format!(">> word={:?}, word_eol={:?}", word, word_eol));
-    use StripFlags::*;
-        
+
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
         let src_lang  = chan_langs.0;
         let tgt_lang  = chan_langs.1;
@@ -300,15 +298,15 @@ fn on_recv_message(hc        : &Hexchat,
                    user_data : &mut UserData
                   ) -> Eat 
 {
-    use StripFlags::*;
-    
+    if word.len() < 2 {
+        return Eat::None;
+    }
     let (event, ref map_udata) = user_data.apply(
                                     |ud: &(&str, UserData)| {
                                         (ud.0, ud.1.clone())
                                     })
                                     .expect("Couldn't downcast user data in \
                                              message receive handler!");
-    
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
         if word.last().unwrap() == "~" {
             // To avoid recursion, this handler appends the "~" to the end of
@@ -379,7 +377,7 @@ fn google_translate_free(text   : &str,
                        ?client=gtx\
                        &sl={source_lang}\
                        &tl={target_lang}\
-                       &dt=t&q={source_text}",          
+                       &dt=t&q={source_text}",
                       source_lang = source,
                       target_lang = target,
                       source_text = urlparse::quote(text, b"").unwrap());
