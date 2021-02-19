@@ -126,7 +126,7 @@ fn get_channel_langs(hc        : &Hexchat,
             if let Some(langs) = chan_map.get(&(network, channel)) {
                 Some(langs.clone())
             } else { None }
-        }).expect("User data downcast to &ChanMap failed.")
+        })
 }
 
 /// Activates the current context for language translation. A `HashMap` is
@@ -152,9 +152,7 @@ fn activate(hc        : &Hexchat,
         |chan_map: &mut ChanMap| {
             chan_map.insert((network, channel), 
                             (source.to_string(), dest.to_string()))
-        }).expect("Activation failed.");
-    // TODO - Should I make it a panic if the downcast fails? Otherwise, this
-    //        fails silentely and other developers would have no idea it was.
+        });
 }
 
 /// Removes the current context's key and value from the `HashMap` that maps
@@ -170,7 +168,7 @@ fn deactivate(hc        : &Hexchat,
     map_udata.apply_mut(
         |chan_map: &mut ChanMap| {
             chan_map.remove(&(network, channel))
-        }).expect("Deactivation failed.");
+        });
 }
 
 /// Implements the /SETLANG command. Use /SETLANG to set the source and
@@ -254,9 +252,7 @@ fn on_cmd_lsay(hc        : &Hexchat,
     let (cmd, ref map_udata) = user_data.apply(
                                     |ud: &(&str, UserData)| {
                                         (ud.0, ud.1.clone())
-                                    })
-                                    .expect("Couldn't downcast user data in \
-                                             LSAY/LME!");
+                                    });
 
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
         let src_lang  = chan_langs.0;
@@ -304,9 +300,8 @@ fn on_recv_message(hc        : &Hexchat,
     let (event, ref map_udata) = user_data.apply(
                                     |ud: &(&str, UserData)| {
                                         (ud.0, ud.1.clone())
-                                    })
-                                    .expect("Couldn't downcast user data in \
-                                             message receive handler!");
+                                    });
+                                    
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
         if word.last().unwrap() == "~" {
             // To avoid recursion, this handler appends the "~" to the end of
