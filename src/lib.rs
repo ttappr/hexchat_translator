@@ -98,8 +98,6 @@ fn plugin_init(hc: &Hexchat) -> i32 {
 /// Called when the plugin is unloaded.
 ///
 fn plugin_deinit(hc: &Hexchat) -> i32 {
-    // Need to make sure each activated channel is deactivated or the 
-    // plugin will make Hexchat crash.
     hc.print("Language Translator unloaded");
     1
 }
