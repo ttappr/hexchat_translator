@@ -1,5 +1,5 @@
 
-#![allow(dead_code, unused_imports, unused_variables)]
+#![allow(dead_code, unused_imports, unused_variables, unused_must_use)]
 
 //! This Hexchat addon provides commands that can turn on language translation
 //! in any chat window of Hexhat. The user's text is translated to the target
@@ -23,17 +23,14 @@
 //! * `/OFFLANG`  - Turns translation off in the current window.
 //!
 
-use std::any::Any;
-use std::cell::RefCell;
+use std::time::Duration;
+use serde_json::Value;
+use serde_json::Map;
+use std::error::Error;
 use std::collections::HashMap;
 use std::thread;
-use std::rc::Rc;
-
-//use std::sync::Arc;
-//use std::sync::Mutex;
 
 use hexchat_api::*;
-
 use UserData::*;
 
 dll_entry_points!(plugin_info, plugin_init, plugin_deinit);
@@ -55,12 +52,12 @@ fn plugin_info() -> PinnedPluginInfo {
 fn plugin_init(hc: &Hexchat) -> i32 {
     hc.print("Language Translator loaded");
     
-    // `user_data` holds a `HashMap` that maps contexts, `(network, channel)`, 
+    // `map_udata` holds a `HashMap` that maps contexts, `(network, channel)`, 
     // to chosen translation, `(source_lang, target_lang)`. 
-    let user_data  = UserData::shared(HashMap::<ChanData, ChanData>::new());
+    let map_udata  = UserData::shared(HashMap::<ChanData, ChanData>::new());
     
-    let lsay_udata = UserData::boxed(("SAY", user_data.clone()));
-    let lme_udata  = UserData::boxed(("ME", user_data.clone()));
+    let lsay_udata = UserData::boxed(("SAY", map_udata.clone()));
+    let lme_udata  = UserData::boxed(("ME", map_udata.clone()));
     
     // Register the commands.
     
@@ -68,10 +65,10 @@ fn plugin_init(hc: &Hexchat) -> i32 {
         "LISTLANG", Priority::Norm, on_cmd_listlang, LISTLANG_HELP, NoData);
         
     hc.hook_command(
-        "SETLANG", Priority::Norm, on_cmd_setlang,   SETLANG_HELP, user_data
+        "SETLANG", Priority::Norm, on_cmd_setlang,   SETLANG_HELP, map_udata
                                                                    .clone());
     hc.hook_command(
-        "OFFLANG", Priority::Norm, on_cmd_offlang,   OFFLANG_HELP, user_data
+        "OFFLANG", Priority::Norm, on_cmd_offlang,   OFFLANG_HELP, map_udata
                                                                    .clone());
     hc.hook_command(
         "LSAY",    Priority::Norm, on_cmd_lsay,      LSAY_HELP,    lsay_udata);
@@ -89,7 +86,7 @@ fn plugin_init(hc: &Hexchat) -> i32 {
                    "You Part",        "You Part with Reason", 
                    "Disconnected"] 
     {
-        let ud = UserData::boxed((*event, user_data.clone()));
+        let ud = UserData::boxed((*event, map_udata.clone()));
         
         hc.hook_print(event, Priority::Norm, on_recv_message, ud);
     }
@@ -100,6 +97,8 @@ fn plugin_init(hc: &Hexchat) -> i32 {
 /// Called when the plugin is unloaded.
 ///
 fn plugin_deinit(hc: &Hexchat) -> i32 {
+    // Need to make sure each activated channel is deactivated or the 
+    // plugin will make Hexchat crash.
     hc.print("Language Translator unloaded");
     1
 }
@@ -110,18 +109,18 @@ fn plugin_deinit(hc: &Hexchat) -> i32 {
 /// `None` is returned.
 /// # Arguments
 /// * `hc`        - The Hexchat interface.
-/// * `user_data` - The user data of the invoking command.
+/// * `map_udata` - The user data of the invoking command.
 /// # Returns
 /// * Returns the channel data for the current context. This is obtained from
 ///   the `HashMap` that maps contexts to the source and dest languages.
 ///   If a context hasn't been set up for transation, `None` is returned.
 ///
 fn get_channel_langs(hc        : &Hexchat, 
-                     user_data : &UserData) -> Option<ChanData> 
+                     map_udata : &UserData) -> Option<ChanData> 
 {
     let network = hc.get_info("network")?;
     let channel = hc.get_info("channel")?;
-    user_data.apply(
+    map_udata.apply(
         |chan_map: &ChanMap| {
             if let Some(langs) = chan_map.get(&(network, channel)) {
                 Some(langs.clone())
@@ -134,12 +133,12 @@ fn get_channel_langs(hc        : &Hexchat,
 /// (source_lang, dest_lang).
 /// # Arguments
 /// * `hc`        - The Hexchat interface.
-/// * `user_data` - The user data of the invoking command.
+/// * `map_udata` - The user data of the invoking command.
 /// * `source`    - The source language to translate from.
 /// * `dest`      - The destination language to translate to.
 ///
 fn activate(hc        : &Hexchat, 
-            user_data : &mut UserData, 
+            map_udata : &mut UserData, 
             source    : &str, 
             dest      : &str) 
 {
@@ -148,7 +147,7 @@ fn activate(hc        : &Hexchat,
     //        these cases - or else get stack traces.
     let network = hc.get_info("network").expect("Unable to get network name.");
     let channel = hc.get_info("channel").expect("Unable to get channel name.");
-    user_data.apply_mut(
+    map_udata.apply_mut(
         |chan_map: &mut ChanMap| {
             chan_map.insert((network, channel), 
                             (source.to_string(), dest.to_string()))
@@ -163,11 +162,11 @@ fn activate(hc        : &Hexchat,
 /// on before. It has no effect if not.
 ///
 fn deactivate(hc        : &Hexchat, 
-              user_data : &mut UserData) 
+              map_udata : &mut UserData) 
 {
     let network = hc.get_info("network").expect("Unable to get network name.");
     let channel = hc.get_info("channel").expect("Unable to get channel name.");
-    user_data.apply_mut(
+    map_udata.apply_mut(
         |chan_map: &mut ChanMap| {
             chan_map.remove(&(network, channel))
         }).expect("Deactivation failed.");
@@ -180,37 +179,41 @@ fn deactivate(hc        : &Hexchat,
 fn on_cmd_setlang(hc        : &Hexchat, 
                   word      : &[String], 
                   word_eol  : &[String], 
-                  user_data : &mut UserData
+                  map_udata : &mut UserData
                  ) -> Eat 
 {
     if word.len() == 3 {
         let mut src_lang = word[1].as_str();
         let mut tgt_lang = word[2].as_str();
         
+        let mut params_good = false;
+        
         // Verify each lang is in the list below.
         if let Some(src_lang_info) = find_lang(src_lang) /* && */ {
         if let Some(tgt_lang_info) = find_lang(tgt_lang) {
         
             if src_lang_info !=  tgt_lang_info {
+                params_good = true;
                     
                 // Make sure the language names are the abbreviation.
                 src_lang  =  src_lang_info.1;
                 tgt_lang  =  tgt_lang_info.1;
 
                 // Activate the channel.
-                activate(hc, user_data, src_lang, tgt_lang);
+                activate(hc, map_udata, src_lang, tgt_lang);
                 
                 hc.print(&format!(
-                         "TRANSLATION IS ON FOR THIS CHANNEL! \
-                            {} (you) to {} (them).", src_lang_info.0, 
-                                                     tgt_lang_info.0));
-            } else {
-                hc.print("BAD LANGUAGE PARAMETERS. Use /LISTLANG to \
-                          get a list of supported languages. And don't \
-                          set translation source and target languages the \
-                          same.");
-            }
+                         "\x0313TRANSLATION IS ON FOR THIS CHANNEL! \
+                          {} (you) to {} (them).", src_lang_info.0, 
+                                                   tgt_lang_info.0));
+            } 
         }}
+        if !params_good {
+            hc.print("\x0313BAD LANGUAGE PARAMETERS. Use /LISTLANG to \
+                      get a list of supported languages. And don't \
+                      set translation source and target languages the \
+                      same.");
+        }
     } else {
         hc.print(&format!("USAGE: {}", SETLANG_HELP));
     }
@@ -223,12 +226,12 @@ fn on_cmd_setlang(hc        : &Hexchat,
 fn on_cmd_offlang(hc        : &Hexchat, 
                   word      : &[String], 
                   word_eol  : &[String], 
-                  user_data : &mut UserData
+                  map_udata : &mut UserData
                  ) -> Eat 
 {
     if word.len() == 1 {
-        deactivate(hc, user_data);
-        hc.print("Translation turned OFF for this channel.");
+        deactivate(hc, map_udata);
+        hc.print("\x0313Translation turned OFF for this channel.");
     } else {
         hc.print(&format!("USAGE: {}", OFFLANG_HELP));
     }
@@ -247,7 +250,7 @@ fn on_cmd_lsay(hc        : &Hexchat,
 {
     // Unpackage the user data to get which command this is for (LSAY/LME),
     // and get the `UserData` with the `HashMap` in it.
-    let (cmd, ref user_data) = user_data.apply(
+    let (cmd, ref map_udata) = user_data.apply(
                                     |ud: &(&str, UserData)| {
                                         (ud.0, ud.1.clone())
                                     })
@@ -255,24 +258,26 @@ fn on_cmd_lsay(hc        : &Hexchat,
                                              LSAY/LME!");
         
     //hc.print(&format!(">> word={:?}, word_eol={:?}", word, word_eol));
+    use StripFlags::*;
         
-    if let Some(chan_langs) = get_channel_langs(hc, user_data) {
+    if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
         let src_lang  = chan_langs.0;
         let tgt_lang  = chan_langs.1;
         let message   = word_eol[1].clone();
-        let strip_msg = hc.strip(&message, StripFlags::StripBoth).unwrap();
+        let strip_msg = hc.strip(&message, StripBoth).unwrap();
         let network   = hc.get_info("network").unwrap();
         let channel   = hc.get_info("channel").unwrap();
         
         thread::spawn(move || {
             let msg;
             match google_translate_free(&strip_msg, &src_lang, &tgt_lang) {
-                Ok(trans) => { msg = trans   },
-                Err(_)    => { msg = message }
+                Ok(trans) => { msg = trans;           },
+                Err(_)    => { msg = message.clone(); }
             }
             main_thread(move |hc| {
                 if let Some(ctx) = hc.find_context(&network, &channel) {
                     ctx.command(&format!("{} {}", cmd, msg));
+                    ctx.print(&format!("\x0311{}", message));
                 } else {
                     // TODO - Review all the error handling and change the model
                     //        or make whatever fixes.
@@ -297,14 +302,14 @@ fn on_recv_message(hc        : &Hexchat,
 {
     use StripFlags::*;
     
-    let (event, ref user_data) = user_data.apply(
+    let (event, ref map_udata) = user_data.apply(
                                     |ud: &(&str, UserData)| {
                                         (ud.0, ud.1.clone())
                                     })
                                     .expect("Couldn't downcast user data in \
                                              message receive handler!");
     
-    if let Some(chan_langs) = get_channel_langs(hc, user_data) {
+    if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
         if word.last().unwrap() == "~" {
             // To avoid recursion, this handler appends the "~" to the end of
             // each `emit_print()` it generates so it can be caught here.
@@ -325,7 +330,7 @@ fn on_recv_message(hc        : &Hexchat,
         thread::spawn(move || {
             let msg;
             let success;
-            match google_translate_free(&strip_msg, &src_lang, &tgt_lang) {
+            match google_translate_free(&strip_msg, &tgt_lang, &src_lang) {
                 Ok(trans) => { msg = trans;           success = true;  },
                 Err(_)    => { msg = message.clone(); success = false; }
             }
@@ -338,10 +343,10 @@ fn on_recv_message(hc        : &Hexchat,
                         ctx.emit_print(msg_type, &[&sender, &msg, "~"]);
                     }
                     if success {
-                        ctx.print(&format!("\x0313{}", message));
+                        ctx.print(&format!("\x0311{}", message));
                     } else {
                        ctx.print(
-                            &format!("\x0313Channel Translator: error."));
+                            &format!("\x0311Channel Translator: error."));
                     }
                 } else {
                     hc.print("Failed to get context.");
@@ -367,7 +372,7 @@ fn on_recv_message(hc        : &Hexchat,
 fn google_translate_free(text   : &str, 
                          source : &str, 
                          target : &str
-                        ) -> Result<String, ()> 
+                        ) -> Result<String, Box<dyn Error>> 
 {
     // Free (but limited) Google Translate request URI.
     let url = format!("https://translate.googleapis.com/translate_a/single\
@@ -378,33 +383,27 @@ fn google_translate_free(text   : &str,
                       source_lang = source,
                       target_lang = target,
                       source_text = urlparse::quote(text, b"").unwrap());
-                      
-    Ok(text.to_string())
-                      
-/*
-    result = None
-        
-    let tr_rsp = Request::get(url, timeout=self._trans_resp_timeout);
-        
-    if tr_rsp.status_code == requests.codes.ok:
-        tr_json = json.loads(tr_rsp.text)
-        tr_text = tr_json["data"]["translations"][0]["translatedText"]
-        
-        result = (True, tr_text)
-    else:
-        try:
-            tr_json = json.loads(tr_rsp.text)
-            err = tr_json["error"]["message"]
-                
-        except (json.decoder.JSONDecodeError, KeyError):
-            
-            err = requests.status_codes._codes[tr_rsp.status_code][0]
+                                            
+    let agent = ureq::AgentBuilder::new()
+                        .timeout_read(Duration::from_secs(5))
+                        .build();
 
-        result = (False, "Google translate web service reported %s."
-                         % err)
+    let tr_rsp = agent.get(&url).call()?;
+    
+    if tr_rsp.status_text() == "OK" {
+        let rsp_txt = tr_rsp.into_string()?;
+        let tr_json = serde_json::from_str::<Value>(&rsp_txt)?;
         
-    return result
-*/
+        if let Some(trans) = tr_json[0][0][0].as_str() {
+            // The indexing into the Value object is safe. If the structure
+            // of the response is wrong, `as_str()` will simply return `None`.
+            Ok(trans.to_string())
+        } else {
+            Ok(text.to_string())
+        }
+    } else {
+        Ok(text.to_string())
+    }
 }
 
 /// Implements the /LISTLANG command - prints out a list of all languages 
@@ -418,7 +417,8 @@ fn on_cmd_listlang(hc        : &Hexchat,
 {
     if word.len() == 1 {
         hc.print("");
-        hc.print("------------------------ Supported Languages \
+        hc.print("\x0311\
+                  ------------------------ Supported Languages \
                   ------------------------");
         let langs = &SUPPORTED_LANGUAGES;
         
@@ -427,7 +427,7 @@ fn on_cmd_listlang(hc        : &Hexchat,
             let (c, d) = langs[i + 1];
             let (e, f) = langs[i + 2];
             hc.print(
-                &format!("{:-15}{:3}        {:-15}{:3}        {:-15}{:3}", 
+                &format!("\x0311{:-15}{:3}        {:-15}{:3}        {:-15}{:3}", 
                          a, b, c, d, e, f));
         }
         hc.print("");
