@@ -12,8 +12,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 hexchat_api = { path = "../hexchat_api" }
-#http = "0.2"
-#reqwest = "0.11"
+regex = "1"
 serde_json = "1.0"
 ureq = { version = "2.0" }
 urlparse = "0.7"

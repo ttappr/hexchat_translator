@@ -23,6 +23,7 @@
 //! * `/OFFLANG`  - Turns translation off in the current window.
 //!
 
+use regex::Regex;
 use std::time::Duration;
 use serde_json::Value;
 use serde_json::Map;
@@ -34,6 +35,8 @@ use hexchat_api::*;
 use UserData::*;
 use StripFlags::*;
 
+// Register the entry points of the plugin.
+//
 dll_entry_points!(plugin_info, plugin_init, plugin_deinit);
 
 type ChanData     = (String, String);
@@ -87,9 +90,9 @@ fn plugin_init(hc: &Hexchat) -> i32 {
                    "You Part",        "You Part with Reason", 
                    "Disconnected"] 
     {
-        let ud = UserData::boxed((*event, map_udata.clone()));
+        let event_udata = UserData::boxed((*event, map_udata.clone()));
         
-        hc.hook_print(event, Priority::Norm, on_recv_message, ud);
+        hc.hook_print(event, Priority::Norm, on_recv_message, event_udata);
     }
 
     1
@@ -344,7 +347,7 @@ fn on_recv_message(hc        : &Hexchat,
                 }
             });
         });
-        Eat::All
+        Eat::Hexchat
     } else {
         Eat::None
     }
@@ -365,36 +368,50 @@ fn google_translate_free(text   : &str,
                          target : &str
                         ) -> Result<String, Box<dyn Error>> 
 {
-    // Free (but limited) Google Translate request URI.
-    let url = format!("https://translate.googleapis.com/translate_a/single\
-                       ?client=gtx\
-                       &sl={source_lang}\
-                       &tl={target_lang}\
-                       &dt=t&q={source_text}",
-                      source_lang = source,
-                      target_lang = target,
-                      source_text = urlparse::quote(text, b"").unwrap());
-                                            
-    let agent = ureq::AgentBuilder::new()
-                        .timeout_read(Duration::from_secs(5))
-                        .build();
-
-    let tr_rsp = agent.get(&url).call()?;
-    
-    if tr_rsp.status_text() == "OK" {
-        let rsp_txt = tr_rsp.into_string()?;
-        let tr_json = serde_json::from_str::<Value>(&rsp_txt)?;
+    let mut translated = String::new();
+    let     expr       = Regex::new(r".+?(?:[.?!;]+\s*|$)").unwrap();
+    let     agent      = ureq::AgentBuilder::new()
+                                    .timeout_read(Duration::from_secs(5))
+                                    .build();
+    // The translation service won't translate past a single period, so we
+    // break the message up into parts if there are any.
+    for m in expr.find_iter(text) {
+        let sentence = m.as_str();
+        let mut good = true;
+        let url = format!("https://translate.googleapis.com/\
+                           translate_a/single\
+                           ?client=gtx\
+                           &sl={source_lang}\
+                           &tl={target_lang}\
+                           &dt=t&q={source_text}",
+                          source_lang = source,
+                          target_lang = target,
+                          source_text = urlparse::quote(sentence, b"")
+                                                  .unwrap());
+                          
+        let tr_rsp = agent.get(&url).call()?;
         
-        if let Some(trans) = tr_json[0][0][0].as_str() {
-            // The indexing into the Value object is safe. If the structure
-            // of the response is wrong, `as_str()` will simply return `None`.
-            Ok(trans.to_string())
-        } else {
-            Ok(text.to_string())
+        if tr_rsp.status_text() == "OK" {
+            let rsp_txt = tr_rsp.into_string()?;
+            let tr_json = serde_json::from_str::<Value>(&rsp_txt)?;
+            
+            if let Some(trans) = tr_json[0][0][0].as_str() {
+                translated.push_str(trans);
+                translated.push(' ');
+            } else {
+                // Failed! Couldn't extract translation from JSON.
+                good = false;
+            }
+        } else { 
+            // Failed! HTTP Get failed.
+            good = false; 
         }
-    } else {
-        Ok(text.to_string())
+        if !good {
+            // Just attach the untranslated string on failure.
+            translated.push_str(sentence);
+        }
     }
+    Ok(translated)
 }
 
 /// Implements the /LISTLANG command - prints out a list of all languages 
