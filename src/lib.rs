@@ -28,6 +28,7 @@ use std::time::Duration;
 use serde_json::Value;
 use serde_json::Map;
 use std::error::Error;
+use std::fmt;
 use std::collections::HashMap;
 use std::thread;
 
@@ -265,18 +266,27 @@ fn on_cmd_lsay(hc        : &Hexchat,
         
         thread::spawn(move || {
             let msg;
+            let mut emsg = None;
             match google_translate_free(&strip_msg, &src_lang, &tgt_lang) {
-                Ok(trans) => { msg = trans;           },
-                Err(_)    => { msg = message.clone(); }
+                Ok(trans) => { 
+                    msg  = trans;
+                },
+                Err(err)  => { 
+                    msg  = err.get_partial_trans().to_string();
+                    emsg = Some(format!("\x0313{}", err));
+                }
             }
             main_thread(move |hc| {
                 if let Some(ctx) = hc.find_context(&network, &channel) {
                     ctx.command(&format!("{} {}", cmd, msg));
                     ctx.print(&format!("\x0311{}", message));
+                    if let Some(emsg) = &emsg {
+                        ctx.print(&emsg);
+                    }
                 } else {
                     // TODO - Review all the error handling and change the model
                     //        or make whatever fixes.
-                    hc.print("Failed to get context.");
+                    hc.print("\x0313Failed to get context.");
                 }
             });
         });
@@ -295,7 +305,9 @@ fn on_recv_message(hc        : &Hexchat,
                    user_data : &mut UserData
                   ) -> Eat 
 {
-    if word.len() < 2 {
+    if word.len() < 2  || word.last().unwrap() == "~" {
+        // To avoid recursion, this handler appends the "~" to the end of
+        // each `emit_print()` it generates so it can be caught here.
         return Eat::None;
     }
     let (event, ref map_udata) = user_data.apply(
@@ -304,11 +316,6 @@ fn on_recv_message(hc        : &Hexchat,
                                     });
                                     
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
-        if word.last().unwrap() == "~" {
-            // To avoid recursion, this handler appends the "~" to the end of
-            // each `emit_print()` it generates so it can be caught here.
-            return Eat::None;
-        }
         let sender    = word[0].clone();
         let message   = word[1].clone();
         let strip_msg = hc.strip(&message, StripBoth).unwrap();
@@ -323,10 +330,15 @@ fn on_recv_message(hc        : &Hexchat,
         
         thread::spawn(move || {
             let msg;
-            let success;
+            let mut emsg = None;
             match google_translate_free(&strip_msg, &tgt_lang, &src_lang) {
-                Ok(trans) => { msg = trans;           success = true;  },
-                Err(_)    => { msg = message.clone(); success = false; }
+                Ok(trans) => { 
+                    msg = trans;
+                },
+                Err(err)  => { 
+                    msg  = err.get_partial_trans().to_string();
+                    emsg = Some(format!("\x0313{}", err));
+                }
             }
             main_thread(move |hc| {
                 if let Some(ctx) = hc.find_context(&network, &channel) {
@@ -336,11 +348,9 @@ fn on_recv_message(hc        : &Hexchat,
                     } else {
                         ctx.emit_print(msg_type, &[&sender, &msg, "~"]);
                     }
-                    if success {
-                        ctx.print(&format!("\x0311{}", message));
-                    } else {
-                       ctx.print(
-                            &format!("\x0311Channel Translator: error."));
+                    ctx.print(&format!("\x0311{}", message));
+                    if let Some(emsg) = &emsg { 
+                        ctx.print(emsg);
                     }
                 } else {
                     hc.print("Failed to get context.");
@@ -361,20 +371,25 @@ fn on_recv_message(hc        : &Hexchat,
 /// * `target`  - The language to translate the text to.
 /// # Returns
 /// * A result where `Ok()` contains the translated text, and `Err()` indicates
-///   the translation failed.
+///   the translation failed. The error will contain an aggregate of 
+///   descriptions for each problem encountered during translation.
 ///
 fn google_translate_free(text   : &str, 
                          source : &str, 
                          target : &str
-                        ) -> Result<String, Box<dyn Error>> 
+                        ) -> Result<String, TransError> 
 {
     let mut translated = String::new();
-    let     expr       = Regex::new(r".+?(?:[.?!;]+\s*|$)").unwrap();
+    let mut errors     = vec![];
+    let mut over_limit = false;
+    let     expr       = Regex::new(r".+?(?:[.?!;]+\s+|$)").unwrap();
     let     agent      = ureq::AgentBuilder::new()
                                     .timeout_read(Duration::from_secs(5))
                                     .build();
-    // The translation service won't translate past a single period, so we
-    // break the message up into parts if there are any.
+    // The translation service won't translate past certain punctuation, so we
+    // break the message up into parts terminated by such punctuation and
+    // treat each one as a separate translation while piecing the results 
+    // together.
     for m in expr.find_iter(text) {
         let sentence = m.as_str();
         let mut good = true;
@@ -387,31 +402,70 @@ fn google_translate_free(text   : &str,
                           source_lang = source,
                           target_lang = target,
                           source_text = urlparse::quote(sentence, b"")
-                                                  .unwrap());
-                          
-        let tr_rsp = agent.get(&url).call()?;
-        
-        if tr_rsp.status_text() == "OK" {
-            let rsp_txt = tr_rsp.into_string()?;
-            let tr_json = serde_json::from_str::<Value>(&rsp_txt)?;
+                                                  .expect("URL message \
+                                                           escaping failed."));
+        // Send the request to the server for translation.
+        if let Ok(tr_rsp) = agent.get(&url).call() {
             
-            if let Some(trans) = tr_json[0][0][0].as_str() {
-                translated.push_str(trans);
-                translated.push(' ');
+            if tr_rsp.status_text() == "OK" {
+
+                // Get the text body of the response.
+                let rsp_txt = tr_rsp.into_string().unwrap();
+                
+                // Try and parse the text as JSON.
+                if let Ok(tr_json) = serde_json::from_str::<Value>(&rsp_txt) {
+                
+                    // Extract the translation from JSON structure.
+                    if let Some(trans) = tr_json[0][0][0].as_str() {
+                    
+                        // Everything's OK, save the translation.
+                        translated.push_str(trans);
+                        
+                        if sentence.ends_with(' ') {
+                            translated.push(' ');
+                        }
+                    } else { good = false; } 
+
+                } else { good = false; }
+                
+                if !good {
+                    // Failed! Not valid JSON, or format is bad.
+                    errors.push("Received invalid response format \
+                                 from server.".to_string());
+                }
+            } else if tr_rsp.status() == 403 { 
+                // Failed! Over the limit.
+                good = false; 
+                over_limit = true;
+                errors.push("Server reported translation limit reached."
+                            .to_string());
             } else {
-                // Failed! Couldn't extract translation from JSON.
+                // Unexpected failure. Get the error text.
                 good = false;
+                errors.push(tr_rsp.status_text().to_string());
             }
-        } else { 
-            // Failed! HTTP Get failed.
-            good = false; 
+        } else {
+            // .call() failed. Probably a timeout, or network issue.
+            good = false;
+            errors.push("Failed to get a response from translation server."
+                        .to_string());
         }
         if !good {
             // Just attach the untranslated string on failure.
             translated.push_str(sentence);
         }
     }
-    Ok(translated)
+    if errors.len() > 0 {
+        // Error will contain the partially translated text, deduplicated
+        // error messages, and indicate if the translation limit was reached.
+        errors.sort_unstable();
+        errors.dedup();
+        Err(TransError::new(translated, errors.join(" "), over_limit))
+        
+    } else {
+        // Each sentence translated went successfully.
+        Ok(translated)
+    }
 }
 
 /// Implements the /LISTLANG command - prints out a list of all languages 
@@ -465,6 +519,71 @@ fn find_lang(lang: &str) -> Option<&(&str, &str)> {
     }
     None
 }
+
+/// Translation error. The error object will contain either a mix of translated
+/// and untranslated messages - if some succeeded and some didn't. Or, just
+/// untranslated text accessible from `get_partial_trans()`. The display
+/// of the error will be an accumulated set of each unique error that occurred
+/// during the translation. If the server indicated the user is over their
+/// translation limit, `is_over-limit()` will reflect that.
+///
+#[derive(Debug)]
+struct TransError {
+    partial_trans : String,
+    error_msg     : String,
+    over_limit    : bool,
+}
+
+impl TransError {
+    /// Constructs the translation error.
+    /// # Arguments
+    /// * `partial_trans`   - Translated and untranslated portions of the 
+    ///                       original text.
+    /// * `error_msg`       - The aggregate of error messages that occurred
+    ///                       during the translation.
+    /// * `over_limit`      - A bool indicating whether the server responded
+    ///                       with a 403 error.
+    ///
+    fn new(partial_trans: String, error_msg: String, over_limit: bool) -> Self {
+        TransError { partial_trans, error_msg, over_limit }
+    }
+    
+    /// Returns the parts of translated and untranslated text - in the same
+    /// order as the original text.
+    ///
+    fn get_partial_trans(&self) -> &str {
+        &self.partial_trans
+    }
+    
+    /// Indicates whether the translator server responded with a 403 error
+    /// which means the number of translations per given span of time has 
+    /// been exceeded.
+    ///
+    fn is_over_limit(&self) -> bool {
+        self.over_limit
+    }
+}
+
+impl Error for TransError {
+    /*
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        if let Some(err) = &self.source_error {
+            Some(err.as_ref())
+        } else { None }
+    }
+    */
+}
+
+impl fmt::Display for TransError {
+
+    /// Displays the aggregate of error messages that occurred during the 
+    /// translation.
+    ///
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Translation Error: {}", self.error_msg)
+    }
+}
+
 
 /// Help strings printed when the user requests /HELP on any of the commands 
 /// this addon provides.
