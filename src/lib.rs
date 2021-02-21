@@ -379,13 +379,21 @@ fn google_translate_free(text   : &str,
                          target : &str
                         ) -> Result<String, TransError> 
 {
+    static mut STATIC: Option<(Regex, ureq::Agent)> = None;
+    
     let mut translated = String::new();
     let mut errors     = vec![];
     let mut over_limit = false;
-    let     expr       = Regex::new(r".+?(?:[.?!;]+\s+|$)").unwrap();
-    let     agent      = ureq::AgentBuilder::new()
-                                    .timeout_read(Duration::from_secs(5))
-                                    .build();
+    unsafe {
+        if STATIC.is_none() {
+            STATIC = Some((Regex::new(r".+?(?:[.?!;]+\s+|$)").unwrap(),
+                           ureq::AgentBuilder::new()
+                                          .timeout_read(Duration::from_secs(5))
+                                          .build()));
+        }
+    }
+    let (expr, agent) = unsafe { STATIC.as_ref().unwrap() };
+
     // The translation service won't translate past certain punctuation, so we
     // break the message up into parts terminated by such punctuation and
     // treat each one as a separate translation while piecing the results 
