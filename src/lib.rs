@@ -36,12 +36,14 @@ use hexchat_api::*;
 use UserData::*;
 use StripFlags::*;
 
+const TRANSLATION_SERVER_TIMEOUT: u64 = 5; // Seconds.
+
 // Register the entry points of the plugin.
 //
 dll_entry_points!(plugin_info, plugin_init, plugin_deinit);
 
-type ChanData     = (String, String);
-type ChanMap      = HashMap<ChanData, ChanData>;
+type ChanData = (String, String);
+type ChanMap  = HashMap<ChanData, ChanData>;
 
 /// Called when the plugin is loaded to register it with Hexchat.
 ///
@@ -377,22 +379,20 @@ fn on_recv_message(hc        : &Hexchat,
 fn google_translate_free(text   : &str, 
                          source : &str, 
                          target : &str
-                        ) -> Result<String, TransError> 
+                        ) -> Result<String, TranslationError> 
 {
-    static mut STATIC: Option<(Regex, ureq::Agent)> = None;
-    
+    // There's really no reason to optimize these two instantiations using
+    // lazy_static. The performance will be unnoticeably improved, but at 
+    // the cost of needing to synchronize access by threads.
+    let expr  = Regex::new(r".+?(?:[.?!;]+\s+|$)").unwrap();
+    let agent = ureq::AgentBuilder::new()
+                      .timeout_read(
+                           Duration::from_secs(TRANSLATION_SERVER_TIMEOUT)
+                      ).build(); 
+                     
     let mut translated = String::new();
     let mut errors     = vec![];
     let mut over_limit = false;
-    unsafe {
-        if STATIC.is_none() {
-            STATIC = Some((Regex::new(r".+?(?:[.?!;]+\s+|$)").unwrap(),
-                           ureq::AgentBuilder::new()
-                                          .timeout_read(Duration::from_secs(5))
-                                          .build()));
-        }
-    }
-    let (expr, agent) = unsafe { STATIC.as_ref().unwrap() };
 
     // The translation service won't translate past certain punctuation, so we
     // break the message up into parts terminated by such punctuation and
@@ -400,67 +400,29 @@ fn google_translate_free(text   : &str,
     // together.
     for m in expr.find_iter(text) {
         let sentence = m.as_str();
-        let mut good = true;
-        let url = format!("https://translate.googleapis.com/\
-                           translate_a/single\
-                           ?client=gtx\
-                           &sl={source_lang}\
-                           &tl={target_lang}\
-                           &dt=t&q={source_text}",
-                          source_lang = source,
-                          target_lang = target,
-                          source_text = urlparse::quote(sentence, b"")
-                                                  .expect("URL message \
-                                                           escaping failed."));
-        // Send the request to the server for translation.
-        if let Ok(tr_rsp) = agent.get(&url).call() {
-            
-            if tr_rsp.status_text() == "OK" {
 
-                // Get the text body of the response.
-                let rsp_txt = tr_rsp.into_string().unwrap();
-                
-                // Try and parse the text as JSON.
-                if let Ok(tr_json) = serde_json::from_str::<Value>(&rsp_txt) {
-                
-                    // Extract the translation from JSON structure.
-                    if let Some(trans) = tr_json[0][0][0].as_str() {
-                    
-                        // Everything's OK, save the translation.
-                        translated.push_str(trans);
-                        
-                        if sentence.ends_with(' ') {
-                            translated.push(' ');
-                        }
-                    } else { good = false; } 
+        match translate_single(sentence, &agent, source, target) {
+            Ok(trans) => {
+                translated.push_str(&trans);
+            },
+            Err(err)  => {
+                use SingleTranslationError as STE;
 
-                } else { good = false; }
-                
-                if !good {
-                    // Failed! Not valid JSON, or format is bad.
-                    errors.push("Received invalid response format \
-                                 from server.".to_string());
-                }
-            } else if tr_rsp.status() == 403 { 
-                // Failed! Over the limit.
-                good = false; 
-                over_limit = true;
-                errors.push("Server reported translation limit reached."
-                            .to_string());
-            } else {
-                // Unexpected failure. Get the error text.
-                good = false;
-                errors.push(tr_rsp.status_text().to_string());
-            }
-        } else {
-            // .call() failed. Probably a timeout, or network issue.
-            good = false;
-            errors.push("Failed to get a response from translation server."
-                        .to_string());
-        }
-        if !good {
-            // Just attach the untranslated string on failure.
-            translated.push_str(sentence);
+                let emsg = match err {
+                    STE::StaticError(s) => {
+                        s.to_string()
+                    },
+                    STE::DynamicError(s) => {
+                        s
+                    },
+                    STE::OverLimit(s) => {
+                        over_limit = true;
+                        s.to_string()
+                    }
+                };
+                errors.push(emsg);
+                translated.push_str(sentence);
+            },
         }
     }
     if errors.len() > 0 {
@@ -468,11 +430,84 @@ fn google_translate_free(text   : &str,
         // error messages, and indicate if the translation limit was reached.
         errors.sort_unstable();
         errors.dedup();
-        Err(TransError::new(translated, errors.join(" "), over_limit))
+        Err( TranslationError::new(translated, errors.join(" "), over_limit) )
         
     } else {
         // Each sentence translated went successfully.
-        Ok(translated)
+        Ok( translated )
+    }
+}
+
+/// Represents errors encountered when doing a single translation. This
+/// error is generated by `translate_single()`.
+/// # Variants
+/// * `StaticError`  - A predicted error with a static error message.
+/// * `DynamicError` - A freeform text error for unexpected errors.
+/// * `OverLimit`    - Indicates that the translation server sent a response
+///                    saying the user has used up all their translations
+///                    in some amount of time.
+///
+#[derive(Debug)]
+enum SingleTranslationError {
+    StaticError  (&'static str),
+    DynamicError (String),
+    OverLimit    (&'static str),
+}
+
+/// Translates a single phrase, or sentence - one without multiple clauses 
+/// separated by stop punctuation like a period.
+/// # Arguments
+/// * `sentence`    - The phrase to translate.
+/// * `agent`       - The network agent that will send the HTTPS GET.
+/// * `source`      - The source language to translate from.
+/// * `target`      - The target language to translate to.
+/// # Returns
+/// * A `Result` with either a `String` if the translation was successful; or
+///   a `SingleTranslationError` if not.
+///
+fn translate_single(sentence : &str, 
+                    agent    : &ureq::Agent,
+                    source   : &str,
+                    target   : &str
+                   ) -> Result<String, SingleTranslationError>
+{
+    use SingleTranslationError::*;
+
+    let url = format!("https://translate.googleapis.com/\
+                       translate_a/single\
+                       ?client=gtx\
+                       &sl={source_lang}\
+                       &tl={target_lang}\
+                       &dt=t&q={source_text}",
+                      source_lang = source,
+                      target_lang = target,
+                      source_text = urlparse::quote(sentence, b"")
+                                              .expect("URL message \
+                                                       escaping failed."));
+    let tr_rsp = agent.get(&url).call()
+                 .or_else(|_| Err( StaticError("Failed to get response from \
+                                                translation server.")))?;
+    if tr_rsp.status_text() == "OK" {
+    
+        let rsp_txt = tr_rsp.into_string()
+                            .unwrap();
+                            
+        let tr_json = serde_json::from_str::<Value>(&rsp_txt)
+                      .or_else(|_| Err( StaticError("Received invalid response \
+                                                     format from server.")))?;
+        let trans   = tr_json[0][0][0].as_str()
+                      .ok_or_else(| | StaticError("Received invalid response \
+                                                   format from server."))?;
+        let mut trans = trans.to_string();
+        if sentence.ends_with(' ') {
+            trans.push(' ');
+        }
+        Ok(trans)
+        
+    } else if tr_rsp.status() == 403 {
+        Err( OverLimit("Server translation limit reached.") )
+    } else {
+        Err( DynamicError(tr_rsp.status_text().to_string()) )
     }
 }
 
@@ -536,13 +571,13 @@ fn find_lang(lang: &str) -> Option<&(&str, &str)> {
 /// translation limit, `is_over-limit()` will reflect that.
 ///
 #[derive(Debug)]
-struct TransError {
+struct TranslationError {
     partial_trans : String,
     error_msg     : String,
     over_limit    : bool,
 }
 
-impl TransError {
+impl TranslationError {
     /// Constructs the translation error.
     /// # Arguments
     /// * `partial_trans`   - Translated and untranslated portions of the 
@@ -553,7 +588,7 @@ impl TransError {
     ///                       with a 403 error.
     ///
     fn new(partial_trans: String, error_msg: String, over_limit: bool) -> Self {
-        TransError { partial_trans, error_msg, over_limit }
+        TranslationError { partial_trans, error_msg, over_limit }
     }
     
     /// Returns the parts of translated and untranslated text - in the same
@@ -572,7 +607,7 @@ impl TransError {
     }
 }
 
-impl Error for TransError {
+impl Error for TranslationError {
     /*
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         if let Some(err) = &self.source_error {
@@ -582,7 +617,7 @@ impl Error for TransError {
     */
 }
 
-impl fmt::Display for TransError {
+impl fmt::Display for TranslationError {
 
     /// Displays the aggregate of error messages that occurred during the 
     /// translation.
