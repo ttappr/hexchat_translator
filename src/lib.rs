@@ -1,5 +1,5 @@
 
-#![allow(dead_code, unused_imports, unused_variables, unused_must_use)]
+//#![allow(dead_code, unused_imports, unused_variables, unused_must_use)]
 
 //! This Hexchat addon provides commands that can turn on language translation
 //! in any chat window of Hexhat. The user's text is translated to the target
@@ -26,7 +26,6 @@
 use regex::Regex;
 use std::time::Duration;
 use serde_json::Value;
-use serde_json::Map;
 use std::error::Error;
 use std::fmt;
 use std::collections::HashMap;
@@ -181,7 +180,7 @@ fn deactivate(hc        : &Hexchat,
 ///
 fn on_cmd_setlang(hc        : &Hexchat, 
                   word      : &[String], 
-                  word_eol  : &[String], 
+                  _word_eol : &[String], 
                   map_udata : &mut UserData
                  ) -> Eat 
 {
@@ -228,7 +227,7 @@ fn on_cmd_setlang(hc        : &Hexchat,
 ///
 fn on_cmd_offlang(hc        : &Hexchat, 
                   word      : &[String], 
-                  word_eol  : &[String], 
+                  _word_eol : &[String], 
                   map_udata : &mut UserData
                  ) -> Eat 
 {
@@ -246,7 +245,7 @@ fn on_cmd_offlang(hc        : &Hexchat,
 /// the channel. Other users will only see the translated message.
 ///
 fn on_cmd_lsay(hc        : &Hexchat, 
-               word      : &[String], 
+               _word     : &[String], 
                word_eol  : &[String], 
                user_data : &mut UserData
               ) -> Eat 
@@ -262,9 +261,15 @@ fn on_cmd_lsay(hc        : &Hexchat,
         let src_lang  = chan_langs.0;
         let tgt_lang  = chan_langs.1;
         let message   = word_eol[1].clone();
-        let strip_msg = hc.strip(&message, StripBoth).unwrap();
-        let network   = hc.get_info("network").unwrap();
-        let channel   = hc.get_info("channel").unwrap();
+        
+        let strip_msg = hc.strip(&message, StripBoth)
+                          .expect("Can't strip message.");
+                          
+        let network   = hc.get_info("network")
+                          .expect("Failed to get network for channel.");
+                          
+        let channel   = hc.get_info("channel")
+                          .expect("Failed to get name for channel.");
         
         thread::spawn(move || {
             let msg;
@@ -283,12 +288,19 @@ fn on_cmd_lsay(hc        : &Hexchat,
             }
             main_thread(move |hc| {
                 if let Some(ctx) = hc.find_context(&network, &channel) {
-                    ctx.command(&format!("{} {}", cmd, msg));
-                    ctx.print(&format!("\x0311{}", message));
+                    ctx.command(&format!("{} {}", cmd, msg))
+                       .expect("Bad context.");
+                       
+                    ctx.print(&format!("\x0311{}", message))
+                       .expect("Bad context.");
+                       
                     if let Some(emsg) = &emsg {
-                        ctx.print(&emsg);
+                        ctx.print(&emsg)
+                           .expect("Bad context.");
+                           
                         if is_over_limit {
-                            ctx.command("OFFLANG");
+                            ctx.command("OFFLANG")
+                               .expect("Bad context.");
                         }
                     }
                 } else {
@@ -326,15 +338,21 @@ fn on_recv_message(hc        : &Hexchat,
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
         let sender    = word[0].clone();
         let message   = word[1].clone();
-        let strip_msg = hc.strip(&message, StripBoth).unwrap();
+        let strip_msg = hc.strip(&message, StripBoth)
+                          .expect("Unable to strip message text.");
+                          
         let msg_type  = event;
         let mode_char = if word.len() > 2 
                              { word[2].clone() } 
                         else { "".to_string() };
         let src_lang  = chan_langs.0;
         let tgt_lang  = chan_langs.1;
-        let network   = hc.get_info("network").unwrap();
-        let channel   = hc.get_info("channel").unwrap();
+        
+        let network   = hc.get_info("network")
+                          .expect("Failed to get network name for channel.");
+                          
+        let channel   = hc.get_info("channel")
+                          .expect("Failed to get channel name.");
         
         thread::spawn(move || {
             let msg;
@@ -355,15 +373,21 @@ fn on_recv_message(hc        : &Hexchat,
                 if let Some(ctx) = hc.find_context(&network, &channel) {
                     if !mode_char.is_empty() {
                         ctx.emit_print(
-                            msg_type, &[&sender, &msg, &mode_char, "~"]);
+                            msg_type, &[&sender, &msg, &mode_char, "~"])
+                            .expect("Bad context.");
                     } else {
-                        ctx.emit_print(msg_type, &[&sender, &msg, "~"]);
+                        ctx.emit_print(msg_type, &[&sender, &msg, "~"])
+                           .expect("Bad context.");
                     }
-                    ctx.print(&format!("\x0311{}", message));
+                    ctx.print(&format!("\x0311{}", message))
+                       .expect("Bad context.");
                     if let Some(emsg) = &emsg { 
-                        ctx.print(emsg);
+                        ctx.print(emsg)
+                           .expect("Bad context.");
+                        
                         if is_over_limit {
-                            ctx.command("OFFLANG");
+                            ctx.command("OFFLANG")
+                               .expect("Bad context.");
                         }
                     }
                 } else {
@@ -502,7 +526,8 @@ fn translate_single(sentence : &str,
     if tr_rsp.status_text() == "OK" {
     
         let rsp_txt = tr_rsp.into_string()
-                            .unwrap();
+                            .expect("Failed to get text for \
+                                      HTTP response body.");
                             
         let tr_json = serde_json::from_str::<Value>(&rsp_txt)
                       .or_else(|_| Err( StaticError("Received invalid response \
