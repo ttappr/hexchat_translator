@@ -1,6 +1,4 @@
 
-//#![allow(dead_code, unused_imports, unused_variables, unused_must_use)]
-
 //! This Hexchat addon provides commands that can turn on language translation
 //! in any chat window of Hexhat. The user's text is translated to the target
 //! language going out, and incoming message are translated back into the user's
@@ -461,7 +459,7 @@ fn google_translate_free(text   : &str,
             },
         }
     }
-    if errors.len() > 0 {
+    if !errors.is_empty() {
         // Error will contain the partially translated text, deduplicated
         // error messages, and indicate if the translation limit was reached.
         errors.sort_unstable();
@@ -521,8 +519,8 @@ fn translate_single(sentence : &str,
                                               .expect("URL message \
                                                        escaping failed."));
     let tr_rsp = agent.get(&url).call()
-                 .or_else(|_| Err( StaticError("Failed to get response from \
-                                                translation server.")))?;
+                 .map_err(|_| StaticError("Failed to get response from \
+                                           translation server."))?;
     if tr_rsp.status_text() == "OK" {
     
         let rsp_txt = tr_rsp.into_string()
@@ -530,11 +528,11 @@ fn translate_single(sentence : &str,
                                       HTTP response body.");
                             
         let tr_json = serde_json::from_str::<Value>(&rsp_txt)
-                      .or_else(|_| Err( StaticError("Received invalid response \
-                                                     format from server.")))?;
+                      .map_err(|_| StaticError("Received invalid response \
+                                                format from server."))?;
         let trans   = tr_json[0][0][0].as_str()
-                      .ok_or_else(| | StaticError("Received invalid response \
-                                                   format from server."))?;
+                      .ok_or( StaticError("Received invalid response \
+                                           format from server.") )?;
         let mut trans = trans.to_string();
         if sentence.ends_with(' ') {
             trans.push(' ');
@@ -551,6 +549,7 @@ fn translate_single(sentence : &str,
 /// Implements the /LISTLANG command - prints out a list of all languages 
 /// that the translation web services support.
 ///
+#[allow(clippy::many_single_char_names)]     
 fn on_cmd_listlang(hc        : &Hexchat, 
                    word      : &[String], 
                    _word_eol : &[String], 
