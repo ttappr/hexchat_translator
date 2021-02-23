@@ -516,8 +516,8 @@ fn translate_single(sentence : &str,
                       source_lang = source,
                       target_lang = target,
                       source_text = urlparse::quote(sentence, b"")
-                                              .expect("URL message \
-                                                       escaping failed."));
+                                    .expect("URL message escaping failed."));
+                                    
     let tr_rsp = agent.get(&url).call()
                  .map_err(|_| StaticError("Failed to get response from \
                                            translation server."))?;
