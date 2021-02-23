@@ -22,16 +22,16 @@
 //!
 
 use regex::Regex;
-use std::time::Duration;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
-use std::collections::HashMap;
 use std::thread;
+use std::time::Duration;
 
 use hexchat_api::*;
-use UserData::*;
 use StripFlags::*;
+use UserData::*;
 
 const TRANSLATION_SERVER_TIMEOUT: u64 = 5; // Seconds.
 
@@ -372,7 +372,7 @@ fn on_recv_message(hc        : &Hexchat,
                     if !mode_char.is_empty() {
                         ctx.emit_print(
                             msg_type, &[&sender, &msg, &mode_char, "~"])
-                            .expect("Bad context.");
+                           .expect("Bad context.");
                     } else {
                         ctx.emit_print(msg_type, &[&sender, &msg, "~"])
                            .expect("Bad context.");
@@ -524,8 +524,7 @@ fn translate_single(sentence : &str,
     if tr_rsp.status_text() == "OK" {
     
         let rsp_txt = tr_rsp.into_string()
-                            .expect("Failed to get text for \
-                                      HTTP response body.");
+                      .expect("Failed to get text for HTTP response body.");
                             
         let tr_json = serde_json::from_str::<Value>(&rsp_txt)
                       .map_err(|_| StaticError("Received invalid response \
