@@ -269,6 +269,8 @@ fn on_cmd_lsay(hc        : &Hexchat,
         thread::spawn(move || {
             let msg;
             let mut emsg = None;
+            let mut is_over_limit = false;
+            
             match google_translate_free(&strip_msg, &src_lang, &tgt_lang) {
                 Ok(trans) => { 
                     msg  = trans;
@@ -276,6 +278,7 @@ fn on_cmd_lsay(hc        : &Hexchat,
                 Err(err)  => { 
                     msg  = err.get_partial_trans().to_string();
                     emsg = Some(format!("\x0313{}", err));
+                    is_over_limit = err.is_over_limit();
                 }
             }
             main_thread(move |hc| {
@@ -284,6 +287,9 @@ fn on_cmd_lsay(hc        : &Hexchat,
                     ctx.print(&format!("\x0311{}", message));
                     if let Some(emsg) = &emsg {
                         ctx.print(&emsg);
+                        if is_over_limit {
+                            ctx.command("OFFLANG");
+                        }
                     }
                 } else {
                     // TODO - Review all the error handling and change the model
@@ -333,6 +339,8 @@ fn on_recv_message(hc        : &Hexchat,
         thread::spawn(move || {
             let msg;
             let mut emsg = None;
+            let mut is_over_limit = false;
+            
             match google_translate_free(&strip_msg, &tgt_lang, &src_lang) {
                 Ok(trans) => { 
                     msg = trans;
@@ -340,6 +348,7 @@ fn on_recv_message(hc        : &Hexchat,
                 Err(err)  => { 
                     msg  = err.get_partial_trans().to_string();
                     emsg = Some(format!("\x0313{}", err));
+                    is_over_limit = err.is_over_limit();
                 }
             }
             main_thread(move |hc| {
@@ -353,6 +362,9 @@ fn on_recv_message(hc        : &Hexchat,
                     ctx.print(&format!("\x0311{}", message));
                     if let Some(emsg) = &emsg { 
                         ctx.print(emsg);
+                        if is_over_limit {
+                            ctx.command("OFFLANG");
+                        }
                     }
                 } else {
                     hc.print("Failed to get context.");
@@ -381,9 +393,9 @@ fn google_translate_free(text   : &str,
                          target : &str
                         ) -> Result<String, TranslationError> 
 {
-    // There's really no reason to optimize these two instantiations using
-    // lazy_static. The performance will be unnoticeably improved, but at 
-    // the cost of needing to synchronize access by threads.
+    // Optimizing the regex and agent using lazy_static wouldn't noticeably
+    // improve performance for the user. Plus, static resources are very hard to
+    // thoroughly clean up for when the plugin is being unloaded/reloaded.
     let expr  = Regex::new(r".+?(?:[.?!;]+\s+|$)").unwrap();
     let agent = ureq::AgentBuilder::new()
                       .timeout_read(
