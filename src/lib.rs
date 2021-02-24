@@ -144,16 +144,19 @@ fn activate(hc        : &Hexchat,
             source    : &str, 
             dest      : &str) 
 {
-    // TODO - The get_info() calls can fail when Hexchat isn't connected to a
-    //        server. Or the active window isn't a channel. Need to handle
-    //        these cases - or else get stack traces.
-    let network = hc.get_info("network").expect("Unable to get network name.");
-    let channel = hc.get_info("channel").expect("Unable to get channel name.");
-    map_udata.apply_mut(
-        |chan_map: &mut ChanMap| {
-            chan_map.insert((network, channel), 
-                            (source.to_string(), dest.to_string()))
-        });
+    if { || {
+        let network = hc.get_info("network")?;
+        let channel = hc.get_info("channel")?;
+        map_udata.apply_mut(
+            |chan_map: &mut ChanMap| {
+                chan_map.insert((network, channel), 
+                                (source.to_string(), dest.to_string()))
+            });
+        Some(())
+    }}().is_none() {
+        hc.print("\x0313\
+                 Failed to get channel information during activation.");
+    }
 }
 
 /// Removes the current context's key and value from the `HashMap` that maps
@@ -164,12 +167,18 @@ fn activate(hc        : &Hexchat,
 fn deactivate(hc        : &Hexchat, 
               map_udata : &mut UserData) 
 {
-    let network = hc.get_info("network").expect("Unable to get network name.");
-    let channel = hc.get_info("channel").expect("Unable to get channel name.");
-    map_udata.apply_mut(
-        |chan_map: &mut ChanMap| {
-            chan_map.remove(&(network, channel))
-        });
+    if { || {
+        let network = hc.get_info("network")?;
+        let channel = hc.get_info("channel")?;
+        map_udata.apply_mut(
+            |chan_map: &mut ChanMap| {
+                chan_map.remove(&(network, channel))
+            });
+        Some(())
+    }}().is_none() {
+        hc.print("\x0313\
+                 Failed to get channel information during deactivation.");
+    }
 }
 
 /// Implements the /SETLANG command. Use /SETLANG to set the source and
