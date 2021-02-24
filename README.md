@@ -2,7 +2,14 @@
 # Hexchat Translator
 
 This is a plugin to Hexchat that provides translated chat features enabling one 
-to easily chat with people in other tongues. 
+to easily chat with people in other tongues. Translation is automatic so all
+participants can focus on the conversation without any thought to the
+translations taking place.
+
+Your outgoing messages will be translated into the target langauge of your
+choice, and incoming messages will be translated back into your native tongue.
+The translated text will be on the first line, with the original message
+below it.
 
 ## Hexchat Commands
 * `/LISTLANG` 
