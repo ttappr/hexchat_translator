@@ -6,7 +6,7 @@ to easily chat with people in other tongues. Translation is automatic so all
 participants can focus on the conversation without any thought to the
 translations taking place.
 
-Your outgoing messages will be translated into the target langauge of your
+Your outgoing messages will be translated into the target language of your
 choice, and incoming messages will be translated back into your native tongue.
 The translated text will be on the first line, with the original message
 below it.
