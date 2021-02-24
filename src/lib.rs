@@ -238,7 +238,7 @@ fn on_cmd_offlang(hc        : &Hexchat,
     Eat::All
 }
 
-/// mplements the /LSAY and /LME commands. Use /LSAY or /LME followed 
+/// Implements the /LSAY and /LME commands. Use /LSAY or /LME followed 
 /// by whatever text you want. The text will be translated and posted to 
 /// the channel. Other users will only see the translated message.
 ///

@@ -47,6 +47,16 @@ folder of your system's Hexchat config directory.
 Or you can load it directly from the UI: 
 * `Window > Plugins and Scripts > Load` - then navigate to the file and load it.
 
+## Building
+It's fairly easy to set up a Rust build environment on your system. You can find
+instructions [here](https://www.rust-lang.org/learn/get-started). The process
+is automated using `rustup`. Once that's in place, simply clone this project 
+and launch the build process:
+* `git clone https://github.com/ttappr/hexchat_translator.git`
+* `cd hexchat_translator`
+* `cargo build --release`
+* `cd target/release && ls -al` and there's your binary.
+
 ## Rust Hexchat API
 This project uses a [Rust Hexchat API lib](https://github.com/ttappr/hexchat_api), 
 which other developers may find useful for writing their own Rust Hexchat 
@@ -55,4 +65,5 @@ plugins. It has some nice features like
 * Simple `user_data` objects.
 * Abstractions like `Context` that make it simple to interact with specific tabs/windows in the UI.
 * Panic's are caught and displayed in the active window.
+
 
