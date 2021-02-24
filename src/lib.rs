@@ -256,7 +256,7 @@ fn on_cmd_lsay(hc        : &Hexchat,
                                     });
 
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
-        if move || -> Option<()> {
+        if { || {
             let src_lang  = chan_langs.0;
             let tgt_lang  = chan_langs.1;
             let message   = word_eol[1].clone();
@@ -299,10 +299,10 @@ fn on_cmd_lsay(hc        : &Hexchat,
                 });
             });
             Some(())
-        }().is_none() {
+        }}().is_none() {
             // If we get here, either `strip()` or `get_info()` returned None.
             hc.print("\x0313\
-                     Translation Error: Basic failure retrieving channel \
+                     Translator Error: Basic failure retrieving channel \
                      information, or unable to strip original message.");
         }
         Eat::All
@@ -331,7 +331,7 @@ fn on_recv_message(hc        : &Hexchat,
                                     });
                                     
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
-        if move || -> Option<()> {
+        if { || {
             let sender    = word[0].clone();
             let message   = word[1].clone();
             let strip_msg = hc.strip(&message, StripBoth)?;
@@ -383,10 +383,11 @@ fn on_recv_message(hc        : &Hexchat,
                 });
             });
             Some(())
-        }().is_none() {
+        }}().is_none() {
+            // If we get here, either `strip()` or `get_info()` returned None.
             hc.print("\x0313\
-                     Translation Error: Basic failure retrieving channel \
-                     information.");
+                     Translator Error: Basic failure retrieving channel \
+                     information, or unable to strip original message.");
         }
         Eat::Hexchat
     } else {
