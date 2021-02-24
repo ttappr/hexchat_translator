@@ -52,7 +52,7 @@ This project uses a [Rust Hexchat API lib](https://github.com/ttappr/hexchat_api
 which other developers may find useful for writing their own Rust Hexchat 
 plugins. It has some nice features like
 * A thread-safe API.
-* Simple user_data objects.
+* Simple `user_data` objects.
 * Abstractions like `Context` that make it simple to interact with specific tabs/windows in the UI.
 * Panic's are caught and displayed in the active window.
 
