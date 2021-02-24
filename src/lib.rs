@@ -340,7 +340,7 @@ fn on_recv_message(hc        : &Hexchat,
                                     });
                                     
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
-        if {||{
+        if {||{ // "try"
             let sender    = word[0].clone();
             let message   = word[1].clone();
             let msg_type  = event;
@@ -350,7 +350,7 @@ fn on_recv_message(hc        : &Hexchat,
             let src_lang  = chan_langs.0;
             let tgt_lang  = chan_langs.1;
             
-            let strip_msg = hc.strip(&message, StripBoth)?;
+            let strip_msg = hc.strip(&message, StripBoth)?; // "throw"
             let network   = hc.get_info("network")?;
             let channel   = hc.get_info("channel")?;
             
@@ -380,7 +380,6 @@ fn on_recv_message(hc        : &Hexchat,
                         ctx.print(&format!("\x0311{}", message))?;
                         if let Some(emsg) = &emsg { 
                             ctx.print(emsg)?;
-                            
                             if is_over_limit {
                                 ctx.command("OFFLANG")?;
                             }
@@ -392,7 +391,7 @@ fn on_recv_message(hc        : &Hexchat,
                 });
             });
             Some(())
-        }}().is_none() {
+        }}().is_none() { // "catch"
             // If we get here, either `strip()` or `get_info()` returned None.
             hc.print("\x0313\
                      Translator Error: Basic failure retrieving channel \

@@ -11,6 +11,16 @@ choice, and incoming messages will be translated back into your native tongue.
 The translated text will be on the first line, with the original message
 below it.
 
+The plugin was implemented in Rust using a 
+[Rust interface](https://github.com/ttappr/hexchat_api)
+to the Hexchat Plugin Interface. The translations are provided by Google's
+free translation API. The number of translations per hour is limited, so 
+be careful not to enable translations on channels that have high volume of
+messages per unit time. One on one private conversations are unlikely to be
+interrupted, but fast main channel traffic can cause the service to rate
+limit the translations, and it can take an hour for it to become responsive 
+again.
+
 ## Hexchat Commands
 * `/LISTLANG` 
     * Lists all the supported langauges.
@@ -58,12 +68,14 @@ and launch the build process:
 * `cd target/release && ls -al` and there's your binary.
 
 ## Rust Hexchat API
-This project uses a [Rust Hexchat API lib](https://github.com/ttappr/hexchat_api), 
+This project uses a 
+[Rust Hexchat API lib](https://github.com/ttappr/hexchat_api), 
 which other developers may find useful for writing their own Rust Hexchat 
 plugins. It has some nice features like
 * A thread-safe API.
 * Simple `user_data` objects.
-* Abstractions like `Context` that make it simple to interact with specific tabs/windows in the UI.
+* Abstractions like `Context` that make it simple to interact with specific 
+  tabs/windows in the UI.
 * Panic's are caught and displayed in the active window.
 
 
