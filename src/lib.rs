@@ -47,7 +47,7 @@ type ChanMap  = HashMap<ChanData, ChanData>;
 fn plugin_info() -> PinnedPluginInfo {
     PluginInfo::new(
         "Language Translator",
-        "0.1",
+        "0.1.1",
         "Instantly translated conversation in over 100 languages.")
 }
 
@@ -256,58 +256,55 @@ fn on_cmd_lsay(hc        : &Hexchat,
                                     });
 
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
-        let src_lang  = chan_langs.0;
-        let tgt_lang  = chan_langs.1;
-        let message   = word_eol[1].clone();
-        
-        let strip_msg = hc.strip(&message, StripBoth)
-                          .expect("Can't strip message.");
-                          
-        let network   = hc.get_info("network")
-                          .expect("Failed to get network for channel.");
-                          
-        let channel   = hc.get_info("channel")
-                          .expect("Failed to get name for channel.");
-        
-        thread::spawn(move || {
-            let msg;
-            let mut emsg = None;
-            let mut is_over_limit = false;
+        if move || -> Option<()> {
+            let src_lang  = chan_langs.0;
+            let tgt_lang  = chan_langs.1;
+            let message   = word_eol[1].clone();
             
-            match google_translate_free(&strip_msg, &src_lang, &tgt_lang) {
-                Ok(trans) => { 
-                    msg  = trans;
-                },
-                Err(err)  => { 
-                    msg  = err.get_partial_trans().to_string();
-                    emsg = Some(format!("\x0313{}", err));
-                    is_over_limit = err.is_over_limit();
-                }
-            }
-            main_thread(move |hc| {
-                if let Some(ctx) = hc.find_context(&network, &channel) {
-                    ctx.command(&format!("{} {}", cmd, msg))
-                       .expect("Bad context.");
-                       
-                    ctx.print(&format!("\x0311{}", message))
-                       .expect("Bad context.");
-                       
-                    if let Some(emsg) = &emsg {
-                        ctx.print(&emsg)
-                           .expect("Bad context.");
-                           
-                        if is_over_limit {
-                            ctx.command("OFFLANG")
-                               .expect("Bad context.");
-                        }
+            let strip_msg = hc.strip(&message, StripBoth)?;
+            let network   = hc.get_info("network")?;                              
+            let channel   = hc.get_info("channel")?;
+            
+            thread::spawn(move || {
+                let msg;
+                let mut emsg = None;
+                let mut is_over_limit = false;
+                
+                match google_translate_free(&strip_msg, &src_lang, &tgt_lang) {
+                    Ok(trans) => { 
+                        msg  = trans;
+                    },
+                    Err(err)  => { 
+                        msg  = err.get_partial_trans().to_string();
+                        emsg = Some(format!("\x0313{}", err));
+                        is_over_limit = err.is_over_limit();
                     }
-                } else {
-                    // TODO - Review all the error handling and change the model
-                    //        or make whatever fixes.
-                    hc.print("\x0313Failed to get context.");
                 }
+                main_thread(move |hc| -> Result<(), ContextError> {
+                    if let Some(ctx) = hc.find_context(&network, &channel) {
+                        ctx.command(&format!("{} {}", cmd, msg))?;
+                        ctx.print(&format!("\x0311{}", message))?;
+                           
+                        if let Some(emsg) = &emsg {
+                            ctx.print(&emsg)?;
+                               
+                            if is_over_limit {
+                                ctx.command("OFFLANG")?;
+                            }
+                        }
+                    } else {
+                        hc.print("\x0313Failed to get context.");
+                    }
+                    Ok(())
+                });
             });
-        });
+            Some(())
+        }().is_none() {
+            // If we get here, either `strip()` or `get_info()` returned None.
+            hc.print("\x0313\
+                     Translation Error: Basic failure retrieving channel \
+                     information, or unable to strip original message.");
+        }
         Eat::All
     } else {
         Eat::None
@@ -334,65 +331,63 @@ fn on_recv_message(hc        : &Hexchat,
                                     });
                                     
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
-        let sender    = word[0].clone();
-        let message   = word[1].clone();
-        let strip_msg = hc.strip(&message, StripBoth)
-                          .expect("Unable to strip message text.");
-                          
-        let msg_type  = event;
-        let mode_char = if word.len() > 2 
-                             { word[2].clone() } 
-                        else { "".to_string() };
-        let src_lang  = chan_langs.0;
-        let tgt_lang  = chan_langs.1;
-        
-        let network   = hc.get_info("network")
-                          .expect("Failed to get network name for channel.");
-                          
-        let channel   = hc.get_info("channel")
-                          .expect("Failed to get channel name.");
-        
-        thread::spawn(move || {
-            let msg;
-            let mut emsg = None;
-            let mut is_over_limit = false;
+        if move || -> Option<()> {
+            let sender    = word[0].clone();
+            let message   = word[1].clone();
+            let strip_msg = hc.strip(&message, StripBoth)?;
+            let msg_type  = event;
+            let mode_char = if word.len() > 2 
+                                 { word[2].clone() } 
+                            else { "".to_string() };
+            let src_lang  = chan_langs.0;
+            let tgt_lang  = chan_langs.1;
             
-            match google_translate_free(&strip_msg, &tgt_lang, &src_lang) {
-                Ok(trans) => { 
-                    msg = trans;
-                },
-                Err(err)  => { 
-                    msg  = err.get_partial_trans().to_string();
-                    emsg = Some(format!("\x0313{}", err));
-                    is_over_limit = err.is_over_limit();
-                }
-            }
-            main_thread(move |hc| {
-                if let Some(ctx) = hc.find_context(&network, &channel) {
-                    if !mode_char.is_empty() {
-                        ctx.emit_print(
-                            msg_type, &[&sender, &msg, &mode_char, "~"])
-                           .expect("Bad context.");
-                    } else {
-                        ctx.emit_print(msg_type, &[&sender, &msg, "~"])
-                           .expect("Bad context.");
+            let network   = hc.get_info("network")?;
+            let channel   = hc.get_info("channel")?;
+            
+            thread::spawn(move || {
+                let msg;
+                let mut emsg = None;
+                let mut is_over_limit = false;
+                
+                match google_translate_free(&strip_msg, &tgt_lang, &src_lang) {
+                    Ok(trans) => { 
+                        msg = trans;
+                    },
+                    Err(err)  => { 
+                        msg  = err.get_partial_trans().to_string();
+                        emsg = Some(format!("\x0313{}", err));
+                        is_over_limit = err.is_over_limit();
                     }
-                    ctx.print(&format!("\x0311{}", message))
-                       .expect("Bad context.");
-                    if let Some(emsg) = &emsg { 
-                        ctx.print(emsg)
-                           .expect("Bad context.");
-                        
-                        if is_over_limit {
-                            ctx.command("OFFLANG")
-                               .expect("Bad context.");
+                }
+                main_thread(move |hc| -> Result<(), ContextError> {
+                    if let Some(ctx) = hc.find_context(&network, &channel) {
+                        if !mode_char.is_empty() {
+                            ctx.emit_print(
+                                msg_type, &[&sender, &msg, &mode_char, "~"])?;
+                        } else {
+                            ctx.emit_print(msg_type, &[&sender, &msg, "~"])?;
                         }
+                        ctx.print(&format!("\x0311{}", message))?;
+                        if let Some(emsg) = &emsg { 
+                            ctx.print(emsg)?;
+                            
+                            if is_over_limit {
+                                ctx.command("OFFLANG")?;
+                            }
+                        }
+                    } else {
+                        hc.print("Failed to get context.");
                     }
-                } else {
-                    hc.print("Failed to get context.");
-                }
+                    Ok(())
+                });
             });
-        });
+            Some(())
+        }().is_none() {
+            hc.print("\x0313\
+                     Translation Error: Basic failure retrieving channel \
+                     information.");
+        }
         Eat::Hexchat
     } else {
         Eat::None
