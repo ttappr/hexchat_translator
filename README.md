@@ -41,8 +41,8 @@ hour.
 
 To add it to Hexchat, you can put the relevant binary in the "addons" 
 folder of your system's Hexchat config directory.
-* `~/.config/hexchat/` for Linux
-* `%APPDATA%\HexChat` on Windows
+* `~/.config/hexchat/addons` for Linux
+* `%APPDATA%\HexChat\addons` on Windows
 
 Or you can load it directly from the UI: 
 * `Window > Plugins and Scripts > Load` - then navigate to the file and load it.
