@@ -42,7 +42,18 @@ const TRANSLATION_SERVER_TIMEOUT: u64 = 5;
 //
 dll_entry_points!(plugin_info, plugin_init, plugin_deinit);
 
+/// Channel data, a tuple of two strings. Used as keys in the channel map, 
+/// the fields hold the `network` and `channel` strings for contexts that
+/// have been enabled for translation. Used as the value in the channel map,
+/// the fields hold the `source_language` and `target_language` to translate
+/// between.
+///
 type ChanData = (String, String);
+
+/// Maps the channels that have been activated for translation to the source
+/// and target language to translate between. The keys are instances of
+/// `ChanData`, as are the values.
+///
 type ChanMap  = HashMap<ChanData, ChanData>;
 
 /// Called when the plugin is loaded to register it with Hexchat.
