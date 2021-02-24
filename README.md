@@ -26,10 +26,10 @@ below it.
 The help for these 
 can be accessed through the Hexchat "/HELP" command.
 
-## Binaries
-* Linux   - libhexchat_translator.so
-* Windows - hexchat_translator.dll
-* Mac     - libhexchat_translator.dylib 
+## Binaries [(here)](https://github.com/ttappr/hexchat_translator/releases/tag/ver-0.1.1)
+* `libhexchat_translator.so`    (Linux)
+* `hexchat_translator.dll`      (Windows)
+* `libhexchat_translator.dylib` (Mac)
 
 You can download these binaries individually from the
 [release](https://github.com/ttappr/hexchat_translator/releases/tag/ver-0.1.1),
