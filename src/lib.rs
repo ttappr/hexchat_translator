@@ -33,7 +33,10 @@ use hexchat_api::*;
 use StripFlags::*;
 use UserData::*;
 
-const TRANSLATION_SERVER_TIMEOUT: u64 = 5; // Seconds.
+/// How long to wait for a translation to come back from the translation
+/// server. The unit is seconds.
+///
+const TRANSLATION_SERVER_TIMEOUT: u64 = 5;
 
 // Register the entry points of the plugin.
 //
