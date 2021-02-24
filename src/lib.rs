@@ -144,7 +144,7 @@ fn activate(hc        : &Hexchat,
             source    : &str, 
             dest      : &str) 
 {
-    if { || {
+    if {||{
         let network = hc.get_info("network")?;
         let channel = hc.get_info("channel")?;
         map_udata.apply_mut(
@@ -167,7 +167,7 @@ fn activate(hc        : &Hexchat,
 fn deactivate(hc        : &Hexchat, 
               map_udata : &mut UserData) 
 {
-    if { || {
+    if {||{
         let network = hc.get_info("network")?;
         let channel = hc.get_info("channel")?;
         map_udata.apply_mut(
@@ -265,7 +265,7 @@ fn on_cmd_lsay(hc        : &Hexchat,
                                     });
 
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
-        if { || {
+        if {||{
             let src_lang  = chan_langs.0;
             let tgt_lang  = chan_langs.1;
             let message   = word_eol[1].clone();
@@ -340,17 +340,17 @@ fn on_recv_message(hc        : &Hexchat,
                                     });
                                     
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
-        if { || {
+        if {||{
             let sender    = word[0].clone();
             let message   = word[1].clone();
-            let strip_msg = hc.strip(&message, StripBoth)?;
             let msg_type  = event;
             let mode_char = if word.len() > 2 
                                  { word[2].clone() } 
-                            else { "".to_string() };
+                            else { "".to_string()  };
             let src_lang  = chan_langs.0;
             let tgt_lang  = chan_langs.1;
             
+            let strip_msg = hc.strip(&message, StripBoth)?;
             let network   = hc.get_info("network")?;
             let channel   = hc.get_info("channel")?;
             
