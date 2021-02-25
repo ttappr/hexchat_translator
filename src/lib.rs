@@ -58,7 +58,7 @@ type ChanMap  = HashMap<ChanData, ChanData>;
 
 /// Called when the plugin is loaded to register it with Hexchat.
 ///
-fn plugin_info() -> PinnedPluginInfo {
+fn plugin_info() -> PluginInfo {
     PluginInfo::new(
         "Language Translator",
         "0.1.1",
@@ -303,7 +303,7 @@ fn on_cmd_lsay(hc        : &Hexchat,
                         is_over_limit = err.is_over_limit();
                     }
                 }
-                main_thread(move |hc| -> Result<(), ContextError> {
+                let result = main_thread(move |hc| -> Result<(), ContextError> {
                     if let Some(ctx) = hc.find_context(&network, &channel) {
                         ctx.command(&format!("{} {}", cmd, msg))?;
                         ctx.print(&format!("\x0311{}", message))?;
@@ -320,6 +320,10 @@ fn on_cmd_lsay(hc        : &Hexchat,
                     }
                     Ok(())
                 });
+                match result.get() {
+                    Err(err) => { outpth!(hc, "\x0313{}", err); },
+                    _ => {},
+                }
             });
             Some(())
         }}().is_none() {
@@ -383,7 +387,7 @@ fn on_recv_message(hc        : &Hexchat,
                         is_over_limit = err.is_over_limit();
                     }
                 }
-                main_thread(move |hc| -> Result<(), ContextError> {
+                let result = main_thread(move |hc| -> Result<(), ContextError> {
                     if let Some(ctx) = hc.find_context(&network, &channel) {
                         if !mode_char.is_empty() {
                             ctx.emit_print(
@@ -403,6 +407,10 @@ fn on_recv_message(hc        : &Hexchat,
                     }
                     Ok(())
                 });
+                match result.get() {
+                    Err(err) => { outpth!(hc, "\x0313{}", err); },
+                    _ => {},
+                }
             });
             Some(())
         }}().is_none() { // "catch"
