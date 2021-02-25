@@ -303,7 +303,7 @@ fn on_cmd_lsay(hc        : &Hexchat,
                         is_over_limit = err.is_over_limit();
                     }
                 }
-                let result = main_thread(move |hc| -> Result<(), ContextError> {
+                match main_thread(move |hc| -> Result<(), ContextError> {
                     if let Some(ctx) = hc.find_context(&network, &channel) {
                         ctx.command(&format!("{} {}", cmd, msg))?;
                         ctx.print(&format!("\x0311{}", message))?;
@@ -319,8 +319,7 @@ fn on_cmd_lsay(hc        : &Hexchat,
                         hc.print("\x0313Failed to get context.");
                     }
                     Ok(())
-                });
-                match result.get() {
+                }).get() {
                     Err(err) => { outpth!(hc, "\x0313{}", err); },
                     _ => {},
                 }
@@ -387,7 +386,7 @@ fn on_recv_message(hc        : &Hexchat,
                         is_over_limit = err.is_over_limit();
                     }
                 }
-                let result = main_thread(move |hc| -> Result<(), ContextError> {
+                match main_thread(move |hc| -> Result<(), ContextError> {
                     if let Some(ctx) = hc.find_context(&network, &channel) {
                         if !mode_char.is_empty() {
                             ctx.emit_print(
@@ -406,8 +405,7 @@ fn on_recv_message(hc        : &Hexchat,
                         hc.print("Failed to get context.");
                     }
                     Ok(())
-                });
-                match result.get() {
+                }).get() {
                     Err(err) => { outpth!(hc, "\x0313{}", err); },
                     _ => {},
                 }
