@@ -68,6 +68,7 @@ fn plugin_info() -> PluginInfo {
 /// Called when the plugin is loaded.
 ///
 fn plugin_init(hc: &Hexchat) -> i32 {
+
     hc.print("Language Translator loaded");
     
     // `map_udata` holds a `HashMap` that maps contexts, `(network, channel)`, 
@@ -505,11 +506,18 @@ fn google_translate_free(text   : &str,
 ///                    saying the user has used up all their translations
 ///                    in some amount of time.
 ///
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum SingleTranslationError {
     StaticError  (&'static str),
     DynamicError (String),
     OverLimit    (&'static str),
+}
+use std::convert::From;
+
+impl From<&SingleTranslationError> for SingleTranslationError {
+    fn from(item: &SingleTranslationError) -> Self {
+        item.clone()
+    }
 }
 
 /// Translates a single phrase, or sentence - one without multiple clauses 
@@ -530,42 +538,36 @@ fn translate_single(sentence : &str,
                    ) -> Result<String, SingleTranslationError>
 {
     use SingleTranslationError::*;
+    use serde_json::Result as SResult;
     
-    let escaped = urlparse::quote(sentence, b"")
+    fn parse_json(s: &str) -> SResult<Value> {
+        serde_json::from_str::<Value>(s)
+    }
+    static ERRORS: [SingleTranslationError; 4] = [
+        StaticError("URL message escaping failed."),
+        StaticError("Failed to get response from translation server."),
+        StaticError("Failed to get textfor HTTP response body."),
+        StaticError("Received invalid response format from server."),
+    ];
 
-        .map_err(|_| StaticError("URL message escaping failed."))?;
-
-    let url = format!("https://translate.googleapis.com/\
-                       translate_a/single\
-                       ?client=gtx\
-                       &sl={source_lang}\
-                       &tl={target_lang}\
-                       &dt=t&q={source_text}",
-                      source_lang = source,
-                      target_lang = target,
-                      source_text = escaped);
+    let escaped = urlparse::quote(sentence, b"").map_err(|_| &ERRORS[0])?;
+    let url     = format!("https://translate.googleapis.com/\
+                           translate_a/single\
+                           ?client=gtx\
+                           &sl={source_lang}\
+                           &tl={target_lang}\
+                           &dt=t&q={source_text}",
+                          source_lang = source,
+                          target_lang = target,
+                          source_text = escaped);
                                     
-    let tr_rsp = agent.get(&url).call()
-
-        .map_err(|_| StaticError("Failed to get response from translation \
-                                  server."))?;
+    let tr_rsp = agent.get(&url).call()         .map_err(|_| &ERRORS[1])?;
     
     if tr_rsp.status_text() == "OK" {
     
-        let rsp_txt = tr_rsp.into_string()
-                      
-            .map_err(|_| StaticError("Failed to get text for HTTP response \
-                                      body."))?;
-                            
-        let tr_json = serde_json::from_str::<Value>(&rsp_txt)
-        
-            .map_err(|_| StaticError("Received invalid response format from \
-                                      server."))?;
-        
-        let trans = tr_json[0][0][0].as_str()
-        
-            .ok_or( StaticError("Received invalid response format from \
-                                 server."))?;
+        let rsp_txt = tr_rsp.into_string()      .map_err(|_| &ERRORS[2])?;
+        let tr_json = parse_json(&rsp_txt)      .map_err(|_| &ERRORS[3])?;
+        let trans   = tr_json[0][0][0].as_str() .ok_or  (    &ERRORS[3])?;
         
         let mut trans = trans.to_string();
         
