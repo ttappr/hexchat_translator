@@ -320,8 +320,8 @@ fn on_cmd_lsay(hc        : &Hexchat,
                     }
                     Ok(())
                 }).get() {
-                    Err(err) => { outpth!("\x0313{}", err); },
-                    _ => { },
+                    Err(err) => outpth!("\x0313{}", err),
+                    _ => (),
                 }
             });
             Some(())
@@ -406,8 +406,8 @@ fn on_recv_message(hc        : &Hexchat,
                     }
                     Ok(())
                 }).get() {
-                    Err(err) => { outpth!("\x0313{}", err); },
-                    _ => { },
+                    Err(err) => outpth!("\x0313{}", err),
+                    _ => (),
                 }
             });
             Some(())
@@ -530,6 +530,10 @@ fn translate_single(sentence : &str,
                    ) -> Result<String, SingleTranslationError>
 {
     use SingleTranslationError::*;
+    
+    let escaped = urlparse::quote(sentence, b"")
+
+        .map_err(|_| StaticError("URL message escaping failed."))?;
 
     let url = format!("https://translate.googleapis.com/\
                        translate_a/single\
@@ -539,24 +543,32 @@ fn translate_single(sentence : &str,
                        &dt=t&q={source_text}",
                       source_lang = source,
                       target_lang = target,
-                      source_text = urlparse::quote(sentence, b"")
-                                    .expect("URL message escaping failed."));
+                      source_text = escaped);
                                     
     let tr_rsp = agent.get(&url).call()
-                 .map_err(|_| StaticError("Failed to get response from \
-                                           translation server."))?;
+
+        .map_err(|_| StaticError("Failed to get response from translation \
+                                  server."))?;
+    
     if tr_rsp.status_text() == "OK" {
     
         let rsp_txt = tr_rsp.into_string()
-                      .expect("Failed to get text for HTTP response body.");
+                      
+            .map_err(|_| StaticError("Failed to get text for HTTP response \
+                                      body."))?;
                             
         let tr_json = serde_json::from_str::<Value>(&rsp_txt)
-                      .map_err(|_| StaticError("Received invalid response \
-                                                format from server."))?;
-        let trans   = tr_json[0][0][0].as_str()
-                      .ok_or( StaticError("Received invalid response \
-                                           format from server.") )?;
+        
+            .map_err(|_| StaticError("Received invalid response format from \
+                                      server."))?;
+        
+        let trans = tr_json[0][0][0].as_str()
+        
+            .ok_or( StaticError("Received invalid response format from \
+                                 server."))?;
+        
         let mut trans = trans.to_string();
+        
         if sentence.ends_with(' ') {
             trans.push(' ');
         }
@@ -564,6 +576,7 @@ fn translate_single(sentence : &str,
         
     } else if tr_rsp.status() == 403 {
         Err( OverLimit("Server translation limit reached.") )
+        
     } else {
         Err( DynamicError(tr_rsp.status_text().to_string()) )
     }
