@@ -24,6 +24,7 @@
 use regex::Regex;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::convert::From;
 use std::error::Error;
 use std::fmt;
 use std::thread;
@@ -512,8 +513,6 @@ enum SingleTranslationError {
     DynamicError (String),
     OverLimit    (&'static str),
 }
-use std::convert::From;
-
 impl From<&SingleTranslationError> for SingleTranslationError {
     fn from(item: &SingleTranslationError) -> Self {
         item.clone()
