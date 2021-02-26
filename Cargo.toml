@@ -12,8 +12,8 @@ name = "hexchat_translator"
 crate-type = ["cdylib"]
 
 [dependencies]
-hexchat_api = { git = "https://github.com/ttappr/hexchat_api.git", branch = "main" }
-#hexchat_api = { path = "../hexchat_api" }
+#hexchat_api = { git = "https://github.com/ttappr/hexchat_api.git", branch = "main" }
+hexchat_api = { path = "../hexchat_api" }
 regex = "1"
 serde_json = "1.0"
 ureq = { version = "2.0" }

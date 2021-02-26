@@ -320,8 +320,8 @@ fn on_cmd_lsay(hc        : &Hexchat,
                     }
                     Ok(())
                 }).get() {
-                    Err(err) => { outpth!(hc, "\x0313{}", err); },
-                    _ => {},
+                    Err(err) => { outpth!("\x0313{}", err); },
+                    _ => { },
                 }
             });
             Some(())
@@ -406,8 +406,8 @@ fn on_recv_message(hc        : &Hexchat,
                     }
                     Ok(())
                 }).get() {
-                    Err(err) => { outpth!(hc, "\x0313{}", err); },
-                    _ => {},
+                    Err(err) => { outpth!("\x0313{}", err); },
+                    _ => { },
                 }
             });
             Some(())
@@ -708,8 +708,8 @@ const LME_HELP     : &str = "/LME <message> - Sends a channel action \
 
 /// A listing of all the supported langauges.
 
-const SUPPORTED_LANGUAGES: [(&str, &str); 102] = [
-
+const SUPPORTED_LANGUAGES: [(&str, &str); 105] = [
+    
     ("Afrikaans",      "af"), ("Hmong",        "hmn"), ("Polish",       "pl"),
     ("Albanian",       "sq"), ("Hungarian",     "hu"), ("Portuguese",   "pt"),
     ("Amharic",        "am"), ("Icelandic",     "is"), ("Punjabi",      "pa"),
@@ -723,27 +723,27 @@ const SUPPORTED_LANGUAGES: [(&str, &str); 102] = [
     ("Bulgarian",      "bg"), ("Kazakh",        "kk"), ("Sindhi",       "sd"),
     ("Catalan",        "ca"), ("Khmer",         "km"), ("Sinhala",      "si"),
     ("Cebuano",       "ceb"), ("Korean",        "ko"), ("Slovak",       "sk"),
-    ("Corsican",       "co"), ("Kurdish",       "ku"), ("Slovenian",    "sl"),
-    ("Croatian",       "hr"), ("Kyrgyz",        "ky"), ("Somali",       "so"),
-    ("Czech",          "cs"), ("Lao",           "lo"), ("Spanish",      "es"),
-    ("Danish",         "da"), ("Latin",         "la"), ("Sundanese",    "su"),
-    ("Dutch",          "nl"), ("Latvian",       "lv"), ("Swahili",      "sw"),
-    ("English",        "en"), ("Lithuanian",    "lt"), ("Swedish",      "sv"),
-    ("Esperanto",      "eo"), ("Luxembourgish", "lb"), ("Tagalog",      "tl"),
-    ("Estonian",       "et"), ("Macedonian",    "mk"), ("Tajik",        "tg"),
-    ("Finnish",        "fi"), ("Malagasy",      "mg"), ("Tamil",        "ta"),
-    ("French",         "fr"), ("Malay",         "ms"), ("Telugu",       "te"),
-    ("Frisian",        "fy"), ("Malayalam",     "ml"), ("Thai",         "th"),
-    ("Galician",       "gl"), ("Maltese",       "mt"), ("Turkish",      "tr"),
-    ("Georgian",       "ka"), ("Maori",         "mi"), ("Ukrainian",    "uk"),
-    ("German",         "de"), ("Marathi",       "mr"), ("Urdu",         "ur"),
-    ("Greek",          "el"), ("Mongolian",     "mn"), ("Uzbek",        "uz"),
-    ("Gujarati",       "gu"), ("Myanmar",       "my"), ("Vietnamese",   "vi"),
-    ("Haitian_Creole", "ht"), ("Nepali",        "ne"), ("Welsh",        "cy"),
-    ("Hausa",          "ha"), ("Norwegian",     "no"), ("Xhosa",        "xh"),
-    ("Hawaiian",      "haw"), ("Nyanja",        "ny"), ("Yiddish",      "yi"),
-    ("Hebrew",         "he"), ("Pashto",        "ps"), ("Yoruba",       "yo"),
-    ("Hindi",          "hi"), ("Persian",       "fa"), ("Zulu",         "zu")];
-    
-    
+    ("Chinese",        "zh"), ("Kurdish",       "ku"), ("Slovenian",    "sl"),
+    ("Corsican",       "co"), ("Kyrgyz",        "ky"), ("Somali",       "so"),
+    ("Croatian",       "hr"), ("Lao",           "lo"), ("Spanish",      "es"),
+    ("Czech",          "cs"), ("Latin",         "la"), ("Sundanese",    "su"),
+    ("Danish",         "da"), ("Latvian",       "lv"), ("Swahili",      "sw"),
+    ("Dutch",          "nl"), ("Lithuanian",    "lt"), ("Swedish",      "sv"),
+    ("English",        "en"), ("Luxembourgish", "lb"), ("Tagalog",      "tl"),
+    ("Esperanto",      "eo"), ("Macedonian",    "mk"), ("Tajik",        "tg"),
+    ("Estonian",       "et"), ("Malagasy",      "mg"), ("Tamil",        "ta"),
+    ("Finnish",        "fi"), ("Malay",         "ms"), ("Telugu",       "te"),
+    ("French",         "fr"), ("Malayalam",     "ml"), ("Thai",         "th"),
+    ("Frisian",        "fy"), ("Maltese",       "mt"), ("Turkish",      "tr"),
+    ("Galician",       "gl"), ("Maori",         "mi"), ("Ukrainian",    "uk"),
+    ("Georgian",       "ka"), ("Marathi",       "mr"), ("Urdu",         "ur"),
+    ("German",         "de"), ("Mongolian",     "mn"), ("Uzbek",        "uz"),
+    ("Greek",          "el"), ("Myanmar",       "my"), ("Vietnamese",   "vi"),
+    ("Gujarati",       "gu"), ("Nepali",        "ne"), ("Welsh",        "cy"),
+    ("Haitian_Creole", "ht"), ("Norwegian",     "no"), ("Xhosa",        "xh"),
+    ("Hausa",          "ha"), ("Nyanja",        "ny"), ("Yiddish",      "yi"),
+    ("Hawaiian",      "haw"), ("Pashto",        "ps"), ("Yoruba",       "yo"),
+    ("Hebrew",         "he"), ("Persian",       "fa"), ("Zulu",         "zu"),
+    ("Hindi",          "hi"), ("",              ""  ), ("",             ""  )];		
+
     
