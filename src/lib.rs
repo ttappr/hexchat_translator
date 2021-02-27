@@ -136,15 +136,15 @@ fn plugin_deinit(hc: &Hexchat) -> i32 {
 fn get_channel_langs(hc        : &Hexchat, 
                      map_udata : &UserData) -> Option<ChanData> 
 {
-    let network  = hc.get_info("network")?;
-    let channel  = hc.get_info("channel")?;
-    let chan_map = map_udata.downcast_ref::<ChanMap>()?;
-
-    if let Some(langs) = chan_map.get(&(network, channel)) {
-        Some(langs.clone())
-    } else {
-        None
-    }
+    let network = hc.get_info("network")?;
+    let channel = hc.get_info("channel")?;
+    map_udata.apply(
+        |chan_map: &ChanMap| {
+            match chan_map.get(&(network, channel)) {
+                Some(langs) => Some(langs.clone()),
+                None => None,
+            }
+        })
 }
 
 /// Activates the current context for language translation. A `HashMap` is
@@ -162,12 +162,13 @@ fn activate(hc        : &Hexchat,
             dest      : &str) 
 {
     if {||{
-        let network  = hc.get_info("network")?;
-        let channel  = hc.get_info("channel")?;
-        let chan_map = map_udata.downcast_mut::<ChanMap>()?;
-
-        chan_map.insert((network, channel), 
-                        (source.to_string(), dest.to_string()));
+        let network = hc.get_info("network")?;
+        let channel = hc.get_info("channel")?;
+        map_udata.apply_mut(
+            |chan_map: &mut ChanMap| {
+                chan_map.insert((network, channel), 
+                                (source.to_string(), dest.to_string()));
+            });
         Some(())
     }}().is_none() {
         hc.print("\x0313\
