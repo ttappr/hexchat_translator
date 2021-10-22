@@ -140,10 +140,7 @@ fn get_channel_langs(hc        : &Hexchat,
     let channel = hc.get_info("channel")?;
     map_udata.apply(
         |chan_map: &ChanMap| {
-            match chan_map.get(&(network, channel)) {
-                Some(langs) => Some(langs.clone()),
-                None => None,
-            }
+            chan_map.get(&(network, channel)).cloned()
         })
 }
 
@@ -161,6 +158,7 @@ fn activate(hc        : &Hexchat,
             source    : &str, 
             dest      : &str) 
 {
+    #[allow(clippy::blocks_in_if_conditions)]
     if {||{
         let network = hc.get_info("network")?;
         let channel = hc.get_info("channel")?;
@@ -184,6 +182,7 @@ fn activate(hc        : &Hexchat,
 fn deactivate(hc        : &Hexchat, 
               map_udata : &mut UserData) 
 {
+    #[allow(clippy::blocks_in_if_conditions)]
     if {||{
         let network = hc.get_info("network")?;
         let channel = hc.get_info("channel")?;
@@ -282,6 +281,7 @@ fn on_cmd_lsay(hc        : &Hexchat,
                                     });
 
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
+        #[allow(clippy::blocks_in_if_conditions)]
         if {||{
             let src_lang  = chan_langs.0;
             let tgt_lang  = chan_langs.1;
@@ -306,25 +306,25 @@ fn on_cmd_lsay(hc        : &Hexchat,
                         is_over_limit = err.is_over_limit();
                     }
                 }
-                match main_thread(move |hc| -> Result<(), ContextError> {
-                    if let Some(ctx) = hc.find_context(&network, &channel) {
-                        ctx.command(&format!("{} {}", cmd, msg))?;
-                        ctx.print(&format!("\x0311{}", message))?;
-                           
-                        if let Some(emsg) = &emsg {
-                            ctx.print(&emsg)?;
+                if let Err(err) = main_thread(
+                    move |hc| -> Result<(), ContextError> {
+                        if let Some(ctx) = hc.find_context(&network, &channel) {
+                            ctx.command(&format!("{} {}", cmd, msg))?;
+                            ctx.print(&format!("\x0311{}", message))?;
                                
-                            if is_over_limit {
-                                ctx.command("OFFLANG")?;
+                            if let Some(emsg) = &emsg {
+                                ctx.print(emsg)?;
+                                if is_over_limit {
+                                    ctx.command("OFFLANG")?;
+                                }
                             }
+                        } else {
+                            hc.print("\x0313Failed to get context.");
                         }
-                    } else {
-                        hc.print("\x0313Failed to get context.");
+                        Ok(())
                     }
-                    Ok(())
-                }).get() {
-                    Err(err) => outpth!("\x0313{}", err),
-                    _ => (),
+                ).get() {
+                    outpth!("\x0313{}", err);
                 }
             });
             Some(())
@@ -358,8 +358,8 @@ fn on_recv_message(hc        : &Hexchat,
                                     |ud: &(&str, UserData)| {
                                         (ud.0, ud.1.clone())
                                     });
-                                    
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
+        #[allow(clippy::blocks_in_if_conditions)]
         if {||{ // "try"
             let sender    = word[0].clone();
             let message   = word[1].clone();
@@ -389,28 +389,31 @@ fn on_recv_message(hc        : &Hexchat,
                         is_over_limit = err.is_over_limit();
                     }
                 }
-                match main_thread(move |hc| -> Result<(), ContextError> {
-                    if let Some(ctx) = hc.find_context(&network, &channel) {
-                        if !mode_char.is_empty() {
-                            ctx.emit_print(
-                                msg_type, &[&sender, &msg, &mode_char, "~"])?;
-                        } else {
-                            ctx.emit_print(msg_type, &[&sender, &msg, "~"])?;
-                        }
-                        ctx.print(&format!("\x0311{}", message))?;
-                        if let Some(emsg) = &emsg { 
-                            ctx.print(emsg)?;
-                            if is_over_limit {
-                                ctx.command("OFFLANG")?;
+                if let Err(err) = main_thread(
+                    move |hc| -> Result<(), ContextError> {
+                        if let Some(ctx) = hc.find_context(&network, &channel) {
+                            if !mode_char.is_empty() {
+                                ctx.emit_print(
+                                    msg_type, 
+                                    &[&sender, &msg, &mode_char, "~"])?;
+                            } else {
+                                ctx.emit_print(msg_type, 
+                                               &[&sender, &msg, "~"])?;
                             }
+                            ctx.print(&format!("\x0311{}", message))?;
+                            if let Some(emsg) = &emsg { 
+                                ctx.print(emsg)?;
+                                if is_over_limit {
+                                    ctx.command("OFFLANG")?;
+                                }
+                            }
+                        } else {
+                            hc.print("Failed to get context.");
                         }
-                    } else {
-                        hc.print("Failed to get context.");
+                        Ok(())
                     }
-                    Ok(())
-                }).get() {
-                    Err(err) => outpth!("\x0313{}", err),
-                    _ => (),
+                ).get() {
+                    outpth!("\x0313{}", err);
                 }
             });
             Some(())
@@ -445,7 +448,7 @@ fn google_translate_free(text   : &str,
     // Optimizing the regex and agent using lazy_static wouldn't noticeably
     // improve performance for the user. Plus, static resources are very hard to
     // thoroughly clean up for when the plugin is being unloaded/reloaded.
-    let expr  = Regex::new(r".+?(?:[.?!;]+\s+|$)").unwrap();
+    let expr  = Regex::new(r".+?(?:[.?!;|]+\s+|$)").unwrap();
     let agent = ureq::AgentBuilder::new()
                       .timeout_read(
                            Duration::from_secs(TRANSLATION_SERVER_TIMEOUT)
