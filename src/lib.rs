@@ -154,7 +154,7 @@ fn get_channel_langs(hc        : &Hexchat,
 /// * `dest`      - The destination language to translate to.
 ///
 fn activate(hc        : &Hexchat, 
-            map_udata : &mut UserData, 
+            map_udata : &UserData, 
             source    : &str, 
             dest      : &str) 
 {
@@ -180,7 +180,7 @@ fn activate(hc        : &Hexchat,
 /// on before. It has no effect if not.
 ///
 fn deactivate(hc        : &Hexchat, 
-              map_udata : &mut UserData) 
+              map_udata : &UserData) 
 {
     #[allow(clippy::blocks_in_if_conditions)]
     if {||{
@@ -204,7 +204,7 @@ fn deactivate(hc        : &Hexchat,
 fn on_cmd_setlang(hc        : &Hexchat, 
                   word      : &[String], 
                   _word_eol : &[String], 
-                  map_udata : &mut UserData
+                  map_udata : &UserData
                  ) -> Eat 
 {
     if word.len() == 3 {
@@ -251,7 +251,7 @@ fn on_cmd_setlang(hc        : &Hexchat,
 fn on_cmd_offlang(hc        : &Hexchat, 
                   word      : &[String], 
                   _word_eol : &[String], 
-                  map_udata : &mut UserData
+                  map_udata : &UserData
                  ) -> Eat 
 {
     if word.len() == 1 {
@@ -270,7 +270,7 @@ fn on_cmd_offlang(hc        : &Hexchat,
 fn on_cmd_lsay(hc        : &Hexchat, 
                _word     : &[String], 
                word_eol  : &[String], 
-               user_data : &mut UserData
+               user_data : &UserData
               ) -> Eat 
 {
     // Unpackage the user data to get which command this is for (LSAY/LME),
@@ -346,7 +346,7 @@ fn on_cmd_lsay(hc        : &Hexchat,
 ///
 fn on_recv_message(hc        : &Hexchat, 
                    word      : &[String], 
-                   user_data : &mut UserData
+                   user_data : &UserData
                   ) -> Eat 
 {
     if word.len() < 2  || word.last().unwrap() == "~" {
@@ -594,7 +594,7 @@ fn translate_single(sentence : &str,
 fn on_cmd_listlang(hc        : &Hexchat, 
                    word      : &[String], 
                    _word_eol : &[String], 
-                   _userdata : &mut UserData
+                   _userdata : &UserData
                   ) -> Eat 
 {
     if word.len() == 1 {
