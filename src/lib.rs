@@ -636,6 +636,7 @@ fn on_cmd_listlang(hc        : &Hexchat,
 ///
 fn find_lang(lang: &str) -> Option<&(&str, &str)> {
     let lang = lang.to_lowercase();
+    #[allow(clippy::manual_find)]
     for lang_info in &SUPPORTED_LANGUAGES {
         if lang == lang_info.0.to_lowercase() || lang == lang_info.1 {
             return Some(lang_info);
