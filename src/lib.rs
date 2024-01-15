@@ -66,6 +66,10 @@ fn plugin_info() -> PluginInfo {
         "Instantly translated conversation in over 100 languages.")
 }
 
+macro_rules! fmt {
+    ($($arg:tt)*) => (format!($($arg)*))
+}
+
 /// Called when the plugin is loaded.
 ///
 fn plugin_init(hc: &Hexchat) -> i32 {
@@ -227,7 +231,7 @@ fn on_cmd_setlang(hc        : &Hexchat,
                 // Activate the channel.
                 activate(hc, map_udata, src_lang, tgt_lang);
                 
-                hc.print(&format!(
+                hc.print(&fmt!(
                          "\x0313TRANSLATION IS ON FOR THIS CHANNEL! \
                           {} (you) to {} (them).", src_lang_info.0, 
                                                    tgt_lang_info.0));
@@ -240,7 +244,7 @@ fn on_cmd_setlang(hc        : &Hexchat,
                       same.");
         }
     } else {
-        hc.print(&format!("USAGE: {}", SETLANG_HELP));
+        hc.print(&fmt!("USAGE: {}", SETLANG_HELP));
     }
     Eat::All
 }
@@ -258,7 +262,7 @@ fn on_cmd_offlang(hc        : &Hexchat,
         deactivate(hc, map_udata);
         hc.print("\x0313Translation turned OFF for this channel.");
     } else {
-        hc.print(&format!("USAGE: {}", OFFLANG_HELP));
+        hc.print(&fmt!("USAGE: {}", OFFLANG_HELP));
     }
     Eat::All
 }
@@ -302,15 +306,15 @@ fn on_cmd_lsay(hc        : &Hexchat,
                     },
                     Err(err)  => { 
                         msg  = err.get_partial_trans().to_string();
-                        emsg = Some(format!("\x0313{}", err));
+                        emsg = Some(fmt!("\x0313{}", err));
                         is_over_limit = err.is_over_limit();
                     }
                 }
                 if let Err(err) = main_thread(
                     move |hc| -> Result<(), ContextError> {
                         if let Some(ctx) = hc.find_context(&network, &channel) {
-                            ctx.command(&format!("{} {}", cmd, msg))?;
-                            ctx.print(&format!("\x0311{}", message))?;
+                            ctx.command(&fmt!("{} {}", cmd, msg))?;
+                            ctx.print(&fmt!("\x0311{}", message))?;
                                
                             if let Some(emsg) = &emsg {
                                 ctx.print(emsg)?;
@@ -324,7 +328,7 @@ fn on_cmd_lsay(hc        : &Hexchat,
                         Ok(())
                     }
                 ).get() {
-                    outpth!("\x0313{}", err);
+                    hc_print_th!("\x0313{}", err);
                 }
             });
             Some(())
@@ -385,7 +389,7 @@ fn on_recv_message(hc        : &Hexchat,
                     },
                     Err(err)  => { 
                         msg  = err.get_partial_trans().to_string();
-                        emsg = Some(format!("\x0313{}", err));
+                        emsg = Some(fmt!("\x0313{}", err));
                         is_over_limit = err.is_over_limit();
                     }
                 }
@@ -400,7 +404,7 @@ fn on_recv_message(hc        : &Hexchat,
                                 ctx.emit_print(msg_type, 
                                                &[&sender, &msg, "~"])?;
                             }
-                            ctx.print(&format!("\x0311{}", message))?;
+                            ctx.print(&fmt!("\x0311{}", message))?;
                             if let Some(emsg) = &emsg { 
                                 ctx.print(emsg)?;
                                 if is_over_limit {
@@ -413,7 +417,7 @@ fn on_recv_message(hc        : &Hexchat,
                         Ok(())
                     }
                 ).get() {
-                    outpth!("\x0313{}", err);
+                    hc_print_th!("\x0313{}", err);
                 }
             });
             Some(())
@@ -554,7 +558,7 @@ fn translate_single(sentence : &str,
     ];
 
     let escaped = urlparse::quote(sentence, b"").map_err(|_| &ERRORS[0])?;
-    let url     = format!("https://translate.googleapis.com/\
+    let url     = fmt!("https://translate.googleapis.com/\
                            translate_a/single\
                            ?client=gtx\
                            &sl={source_lang}\
@@ -609,7 +613,7 @@ fn on_cmd_listlang(hc        : &Hexchat,
             let (c, d) = langs[i + 1];
             let (e, f) = langs[i + 2];
             hc.print(
-                &format!("\x0311{:-15}{:3}        {:-15}{:3}        {:-15}{:3}", 
+                &fmt!("\x0311{:-15}{:3}        {:-15}{:3}        {:-15}{:3}", 
                          a, b, c, d, e, f));
         }
         hc.print("");
