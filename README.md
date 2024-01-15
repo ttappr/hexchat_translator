@@ -12,7 +12,7 @@ The translated text will be on the first line, with the original message
 below it.
 
 The plugin was implemented in Rust using a 
-[Rust interface](https://github.com/ttappr/hexchat_api)
+[hexchat-api](https://crates.io/crates/hexchat-api)
 to the Hexchat Plugin Interface. The translations are provided by Google's
 free translation API. The number of translations per hour is limited, so 
 be careful not to enable translations on channels that have high volume of
@@ -35,15 +35,6 @@ again.
 
 The help for these 
 can be accessed through the Hexchat "/HELP" command.
-
-## Binaries [(here)](https://github.com/ttappr/hexchat_translator/releases/tag/ver-0.1.1)
-* `libhexchat_translator.so`    (Linux)
-* `hexchat_translator.dll`      (Windows)
-* `libhexchat_translator.dylib` (Mac)
-
-You can download these binaries individually from the
-[release](https://github.com/ttappr/hexchat_translator/releases/tag/ver-0.1.1),
-or get the whole package. 
 
 This plugin is stable, but experimental. It interact's with Google's free 
 translation web service which generously limits the number of translations per 
@@ -69,7 +60,7 @@ and launch the build process:
 
 ## Rust Hexchat API
 This project uses a 
-[Rust Hexchat API lib](https://github.com/ttappr/hexchat_api), 
+[Rust Hexchat API lib](https://crates.io/crates/hexchat-api), 
 which other developers may find useful for writing their own Rust Hexchat 
 plugins. It has some nice features like
 * A thread-safe API.
