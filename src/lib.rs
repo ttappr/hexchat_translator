@@ -62,7 +62,7 @@ type ChanMap  = HashMap<ChanData, ChanData>;
 fn plugin_info() -> PluginInfo {
     PluginInfo::new(
         "Language Translator",
-        "0.1.1",
+        "1.0.3",
         "Instantly translated conversation in over 100 languages.")
 }
 
