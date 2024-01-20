@@ -62,7 +62,7 @@ type ChanMap  = HashMap<ChanData, ChanData>;
 fn plugin_info() -> PluginInfo {
     PluginInfo::new(
         "Language Translator",
-        "1.0.3",
+        env!("CARGO_PKG_VERSION"),
         "Instantly translated conversation in over 100 languages.")
 }
 
@@ -294,12 +294,12 @@ fn on_cmd_lsay(hc        : &Hexchat,
             let strip_msg = hc.strip(&message, StripBoth)?;
             let network   = hc.get_info("network")?;                              
             let channel   = hc.get_info("channel")?;
-            
+
             thread::spawn(move || {
                 let msg;
                 let mut emsg = None;
                 let mut is_over_limit = false;
-                
+               
                 match google_translate_free(&strip_msg, &src_lang, &tgt_lang) {
                     Ok(trans) => { 
                         msg  = trans;
