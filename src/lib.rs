@@ -311,7 +311,7 @@ fn on_cmd_lsay(hc        : &Hexchat,
                     }
                 }
                 if let Err(err) = main_thread(
-                    move |hc| -> Result<(), ContextError> {
+                    move |hc| -> Result<(), HexchatError> {
                         if let Some(ctx) = hc.find_context(&network, &channel) {
                             ctx.command(&fmt!("{} {}", cmd, msg))?;
                             ctx.print(&fmt!("\x0311{}", message))?;
@@ -394,7 +394,7 @@ fn on_recv_message(hc        : &Hexchat,
                     }
                 }
                 if let Err(err) = main_thread(
-                    move |hc| -> Result<(), ContextError> {
+                    move |hc| -> Result<(), HexchatError> {
                         if let Some(ctx) = hc.find_context(&network, &channel) {
                             if !mode_char.is_empty() {
                                 ctx.emit_print(
