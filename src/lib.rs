@@ -1,3 +1,4 @@
+#![allow(clippy::blocks_in_if_conditions)]
 
 //! This Hexchat addon provides commands that can turn on language translation
 //! in any chat window of Hexhat. The user's text is translated to the target
@@ -159,7 +160,6 @@ fn activate(hc        : &Hexchat,
             source    : &str, 
             dest      : &str) 
 {
-    #[allow(clippy::blocks_in_if_conditions)]
     if {||{
         let network = hc.get_info("network")?;
         let channel = hc.get_info("channel")?;
@@ -183,7 +183,6 @@ fn activate(hc        : &Hexchat,
 fn deactivate(hc        : &Hexchat, 
               map_udata : &UserData) 
 {
-    #[allow(clippy::blocks_in_if_conditions)]
     if {||{
         let network = hc.get_info("network")?;
         let channel = hc.get_info("channel")?;
@@ -228,9 +227,10 @@ fn on_cmd_setlang(hc        : &Hexchat,
                 // Activate the channel.
                 activate(hc, map_udata, src_lang, tgt_lang);
                 
-                hc.print(&fm!("{IRC_MAGENTA}TRANSLATION IS ON FOR THIS CHANNEL! \
-                          {} (you) to {} (them).", src_lang_info.0, 
-                                                   tgt_lang_info.0));
+                hc.print(&fm!("{IRC_MAGENTA}\
+                         TRANSLATION IS ON FOR THIS CHANNEL! \
+                         {} (you) to {} (them).", src_lang_info.0, 
+                                                  tgt_lang_info.0));
             } 
         }}
         if !params_good {
@@ -282,7 +282,6 @@ fn on_cmd_lsay(hc        : &Hexchat,
                                     });
 
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
-        #[allow(clippy::blocks_in_if_conditions)]
         if {||{
             let src_lang  = chan_langs.0;
             let tgt_lang  = chan_langs.1;
@@ -361,7 +360,6 @@ fn on_recv_message(hc        : &Hexchat,
                                         (ud.0, ud.1.clone())
                                     });
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
-        #[allow(clippy::blocks_in_if_conditions)]
         if {||{ // "try"
             let sender    = word[0].clone();
             let message   = word[1].clone();
