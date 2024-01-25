@@ -27,6 +27,7 @@ use std::collections::HashMap;
 use std::convert::From;
 use std::error::Error;
 use std::fmt;
+use std::format as fm;
 use std::thread;
 use std::time::Duration;
 
@@ -64,10 +65,6 @@ fn plugin_info() -> PluginInfo {
         "Language Translator",
         env!("CARGO_PKG_VERSION"),
         "Instantly translated conversation in over 100 languages.")
-}
-
-macro_rules! fmt {
-    ($($arg:tt)*) => (format!($($arg)*))
 }
 
 /// Called when the plugin is loaded.
@@ -173,8 +170,8 @@ fn activate(hc        : &Hexchat,
             });
         Some(())
     }}().is_none() {
-        hc.print("\x0313\
-                 Failed to get channel information during activation.");
+        hc.print(&fm!("{IRC_MAGENTA}\
+                 Failed to get channel information during activation."));
     }
 }
 
@@ -196,8 +193,8 @@ fn deactivate(hc        : &Hexchat,
             });
         Some(())
     }}().is_none() {
-        hc.print("\x0313\
-                 Failed to get channel information during deactivation.");
+        hc.print(&fm!("{IRC_MAGENTA}\
+                 Failed to get channel information during deactivation."));
     }
 }
 
@@ -231,20 +228,20 @@ fn on_cmd_setlang(hc        : &Hexchat,
                 // Activate the channel.
                 activate(hc, map_udata, src_lang, tgt_lang);
                 
-                hc.print(&fmt!(
-                         "\x0313TRANSLATION IS ON FOR THIS CHANNEL! \
+                hc.print(&fm!("{IRC_MAGENTA}TRANSLATION IS ON FOR THIS CHANNEL! \
                           {} (you) to {} (them).", src_lang_info.0, 
                                                    tgt_lang_info.0));
             } 
         }}
         if !params_good {
-            hc.print("\x0313BAD LANGUAGE PARAMETERS. Use /LISTLANG to \
-                      get a list of supported languages. And don't \
-                      set translation source and target languages the \
-                      same.");
+            hc.print(&fm!("{IRC_MAGENTA}\
+                     BAD LANGUAGE PARAMETERS. Use /LISTLANG to \
+                     get a list of supported languages. And don't \
+                     set translation source and target languages the \
+                     same."));
         }
     } else {
-        hc.print(&fmt!("USAGE: {}", SETLANG_HELP));
+        hc.print(&fm!("USAGE: {}", SETLANG_HELP));
     }
     Eat::All
 }
@@ -260,9 +257,9 @@ fn on_cmd_offlang(hc        : &Hexchat,
 {
     if word.len() == 1 {
         deactivate(hc, map_udata);
-        hc.print("\x0313Translation turned OFF for this channel.");
+        hc.print(&fm!("{IRC_MAGENTA}Translation turned OFF for this channel."));
     } else {
-        hc.print(&fmt!("USAGE: {}", OFFLANG_HELP));
+        hc.print(&fm!("USAGE: {}", OFFLANG_HELP));
     }
     Eat::All
 }
@@ -306,15 +303,15 @@ fn on_cmd_lsay(hc        : &Hexchat,
                     },
                     Err(err)  => { 
                         msg  = err.get_partial_trans().to_string();
-                        emsg = Some(fmt!("\x0313{}", err));
+                        emsg = Some(fm!("{IRC_MAGENTA}{}", err));
                         is_over_limit = err.is_over_limit();
                     }
                 }
                 if let Err(err) = main_thread(
                     move |hc| -> Result<(), HexchatError> {
                         if let Some(ctx) = hc.find_context(&network, &channel) {
-                            ctx.command(&fmt!("{} {}", cmd, msg))?;
-                            ctx.print(&fmt!("\x0311{}", message))?;
+                            ctx.command(&fm!("{} {}", cmd, msg))?;
+                            ctx.print(&fm!("{IRC_CYAN}{}", message))?;
                                
                             if let Some(emsg) = &emsg {
                                 ctx.print(emsg)?;
@@ -323,20 +320,21 @@ fn on_cmd_lsay(hc        : &Hexchat,
                                 }
                             }
                         } else {
-                            hc.print("\x0313Failed to get context.");
+                            hc.print(&fm!("{IRC_MAGENTA}\
+                                     Failed to get context."));
                         }
                         Ok(())
                     }
                 ).get() {
-                    hc_print_th!("\x0313{}", err);
+                    hc_print_th!("{IRC_MAGENTA}{}", err);
                 }
             });
             Some(())
         }}().is_none() {
             // If we get here, either `strip()` or `get_info()` returned None.
-            hc.print("\x0313\
+            hc.print(&fm!("{IRC_MAGENTA}\
                      Translator Error: Basic failure retrieving channel \
-                     information, or unable to strip original message.");
+                     information, or unable to strip original message."));
         }
         Eat::All
     } else {
@@ -389,7 +387,7 @@ fn on_recv_message(hc        : &Hexchat,
                     },
                     Err(err)  => { 
                         msg  = err.get_partial_trans().to_string();
-                        emsg = Some(fmt!("\x0313{}", err));
+                        emsg = Some(fm!("{IRC_MAGENTA}{}", err));
                         is_over_limit = err.is_over_limit();
                     }
                 }
@@ -404,7 +402,7 @@ fn on_recv_message(hc        : &Hexchat,
                                 ctx.emit_print(msg_type, 
                                                &[&sender, &msg, "~"])?;
                             }
-                            ctx.print(&fmt!("\x0311{}", message))?;
+                            ctx.print(&fm!("{IRC_CYAN}{}", message))?;
                             if let Some(emsg) = &emsg { 
                                 ctx.print(emsg)?;
                                 if is_over_limit {
@@ -417,15 +415,15 @@ fn on_recv_message(hc        : &Hexchat,
                         Ok(())
                     }
                 ).get() {
-                    hc_print_th!("\x0313{}", err);
+                    hc_print_th!("{IRC_MAGENTA}{}", err);
                 }
             });
             Some(())
         }}().is_none() { // "catch"
             // If we get here, either `strip()` or `get_info()` returned None.
-            hc.print("\x0313\
+            hc.print(&fm!("{IRC_MAGENTA}\
                      Translator Error: Basic failure retrieving channel \
-                     information, or unable to strip original message.");
+                     information, or unable to strip original message."));
         }
         Eat::Hexchat
     } else {
@@ -558,15 +556,15 @@ fn translate_single(sentence : &str,
     ];
 
     let escaped = urlparse::quote(sentence, b"").map_err(|_| &ERRORS[0])?;
-    let url     = fmt!("https://translate.googleapis.com/\
-                           translate_a/single\
-                           ?client=gtx\
-                           &sl={source_lang}\
-                           &tl={target_lang}\
-                           &dt=t&q={source_text}",
-                          source_lang = source,
-                          target_lang = target,
-                          source_text = escaped);
+    let url     = fm!("https://translate.googleapis.com/\
+                      translate_a/single\
+                      ?client=gtx\
+                      &sl={source_lang}\
+                      &tl={target_lang}\
+                      &dt=t&q={source_text}",
+                      source_lang = source,
+                      target_lang = target,
+                      source_text = escaped);
                                     
     let tr_rsp = agent.get(&url).call()         .map_err(|_| &ERRORS[1])?;
     
@@ -603,9 +601,9 @@ fn on_cmd_listlang(hc        : &Hexchat,
 {
     if word.len() == 1 {
         hc.print("");
-        hc.print("\x0311\
+        hc.print(&fm!("{IRC_CYAN}\
                   ------------------------ Supported Languages \
-                  ------------------------");
+                  ------------------------"));
         let langs = &SUPPORTED_LANGUAGES;
         
         for i in (0..langs.len()).step_by(3) {
@@ -613,7 +611,7 @@ fn on_cmd_listlang(hc        : &Hexchat,
             let (c, d) = langs[i + 1];
             let (e, f) = langs[i + 2];
             hc.print(
-                &fmt!("\x0311{:-15}{:3}        {:-15}{:3}        {:-15}{:3}", 
+                &fm!("{IRC_CYAN}{:-15}{:3}        {:-15}{:3}        {:-15}{:3}", 
                          a, b, c, d, e, f));
         }
         hc.print("");
