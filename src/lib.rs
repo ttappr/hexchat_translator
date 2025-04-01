@@ -1,5 +1,3 @@
-#![allow(clippy::blocks_in_if_conditions)]
-
 //! This Hexchat addon provides commands that can turn on language translation
 //! in any chat window of Hexhat. The user's text is translated to the target
 //! language going out, and incoming message are translated back into the user's
@@ -160,7 +158,7 @@ fn activate(hc        : &Hexchat,
             source    : &str, 
             dest      : &str) 
 {
-    if {||{
+    let try_activate = || {
         let network = hc.get_info("network")?;
         let channel = hc.get_info("channel")?;
         map_udata.apply_mut(
@@ -169,7 +167,8 @@ fn activate(hc        : &Hexchat,
                                 (source.to_string(), dest.to_string()));
             });
         Some(())
-    }}().is_none() {
+    };
+    if try_activate().is_none() {
         hc.print(&fm!("{IRC_MAGENTA}\
                  Failed to get channel information during activation."));
     }
@@ -183,7 +182,7 @@ fn activate(hc        : &Hexchat,
 fn deactivate(hc        : &Hexchat, 
               map_udata : &UserData) 
 {
-    if {||{
+    let try_deactivate = || {
         let network = hc.get_info("network")?;
         let channel = hc.get_info("channel")?;
         map_udata.apply_mut(
@@ -191,7 +190,8 @@ fn deactivate(hc        : &Hexchat,
                 chan_map.remove(&(network, channel))
             });
         Some(())
-    }}().is_none() {
+    };
+    if try_deactivate().is_none() {
         hc.print(&fm!("{IRC_MAGENTA}\
                  Failed to get channel information during deactivation."));
     }
@@ -214,8 +214,8 @@ fn on_cmd_setlang(hc        : &Hexchat,
         let mut params_good = false;
         
         // Verify each lang is in the list below.
-        if let Some(src_lang_info) = find_lang(src_lang) /* && */ {
-        if let Some(tgt_lang_info) = find_lang(tgt_lang) {
+        if let (Some(src_lang_info), Some(tgt_lang_info))
+            = (find_lang(src_lang), find_lang(tgt_lang)) {
         
             if src_lang_info !=  tgt_lang_info {
                 params_good = true;
@@ -232,7 +232,7 @@ fn on_cmd_setlang(hc        : &Hexchat,
                          {} (you) to {} (them).", src_lang_info.0, 
                                                   tgt_lang_info.0));
             } 
-        }}
+        }
         if !params_good {
             hc.print(&fm!("{IRC_MAGENTA}\
                      BAD LANGUAGE PARAMETERS. Use /LISTLANG to \
@@ -282,7 +282,7 @@ fn on_cmd_lsay(hc        : &Hexchat,
                                     });
 
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
-        if {||{
+        let try_action = || {
             let src_lang  = chan_langs.0;
             let tgt_lang  = chan_langs.1;
             let message   = word_eol[1].clone();
@@ -329,7 +329,8 @@ fn on_cmd_lsay(hc        : &Hexchat,
                 }
             });
             Some(())
-        }}().is_none() {
+        };
+        if try_action().is_none() {
             // If we get here, either `strip()` or `get_info()` returned None.
             hc.print(&fm!("{IRC_MAGENTA}\
                      Translator Error: Basic failure retrieving channel \
@@ -360,7 +361,7 @@ fn on_recv_message(hc        : &Hexchat,
                                         (ud.0, ud.1.clone())
                                     });
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
-        if {||{ // "try"
+        let try_action = || {
             let sender    = word[0].clone();
             let message   = word[1].clone();
             let msg_type  = event;
@@ -417,7 +418,8 @@ fn on_recv_message(hc        : &Hexchat,
                 }
             });
             Some(())
-        }}().is_none() { // "catch"
+        };
+        if try_action().is_none() {
             // If we get here, either `strip()` or `get_info()` returned None.
             hc.print(&fm!("{IRC_MAGENTA}\
                      Translator Error: Basic failure retrieving channel \
@@ -706,8 +708,8 @@ impl fmt::Display for TranslationError {
 }
 
 
-/// Help strings printed when the user requests /HELP on any of the commands 
-/// this addon provides.
+// Help strings printed when the user requests /HELP on any of the commands 
+// this addon provides.
 
 const LISTLANG_HELP: &str = "/LISTLANG - Lists languages supported and \
                              their abbrevations. This command takes no \
@@ -725,7 +727,7 @@ const LSAY_HELP    : &str = "/LSAY <message> - Sends a translated message \
 const LME_HELP     : &str = "/LME <message> - Sends a channel action \
                              message translated.";
 
-/// A listing of all the supported langauges.
+// A listing of all the supported langauges.
 
 const SUPPORTED_LANGUAGES: [(&str, &str); 105] = [
     
