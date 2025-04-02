@@ -134,7 +134,9 @@ fn plugin_deinit(hc: &Hexchat) -> i32 {
 ///   If a context hasn't been set up for transation, `None` is returned.
 ///
 fn get_channel_langs(hc        : &Hexchat, 
-                     map_udata : &UserData) -> Option<ChanData> 
+                     map_udata : &UserData) 
+                     
+    -> Option<ChanData> 
 {
     let network = hc.get_info("network")?;
     let channel = hc.get_info("channel")?;
@@ -204,8 +206,8 @@ fn deactivate(hc        : &Hexchat,
 fn on_cmd_setlang(hc        : &Hexchat, 
                   word      : &[String], 
                   _word_eol : &[String], 
-                  map_udata : &UserData
-                 ) -> Eat 
+                  map_udata : &UserData) 
+    -> Eat 
 {
     if word.len() == 3 {
         let mut src_lang = word[1].as_str();
@@ -252,8 +254,8 @@ fn on_cmd_setlang(hc        : &Hexchat,
 fn on_cmd_offlang(hc        : &Hexchat, 
                   word      : &[String], 
                   _word_eol : &[String], 
-                  map_udata : &UserData
-                 ) -> Eat 
+                  map_udata : &UserData) 
+    -> Eat 
 {
     if word.len() == 1 {
         deactivate(hc, map_udata);
@@ -269,10 +271,26 @@ fn on_cmd_offlang(hc        : &Hexchat,
 /// the channel. Other users will only see the translated message.
 ///
 fn on_cmd_lsay(hc        : &Hexchat, 
-               _word     : &[String], 
+               word      : &[String], 
                word_eol  : &[String], 
-               user_data : &UserData
-              ) -> Eat 
+               user_data : &UserData) 
+    -> Eat 
+{
+    if let Some(eat) = try_on_cmd_lsay(hc, word, word_eol, user_data) {
+        eat
+    } else {
+        hc.print(&fm!("{IRC_MAGENTA}\
+                 Translator Error: Basic failure retrieving channel \
+                 information, or unable to strip original message."));        
+        Eat::All
+    }
+}
+
+fn try_on_cmd_lsay(hc        : &Hexchat, 
+                   _word     : &[String], 
+                   word_eol  : &[String], 
+                   user_data : &UserData) 
+    -> Option<Eat>
 {
     // Unpackage the user data to get which command this is for (LSAY/LME),
     // and get the `UserData` with the `HashMap` in it.
@@ -282,63 +300,54 @@ fn on_cmd_lsay(hc        : &Hexchat,
                                     });
 
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
-        let try_action = || {
-            let src_lang  = chan_langs.0;
-            let tgt_lang  = chan_langs.1;
-            let message   = word_eol[1].clone();
-            
-            let strip_msg = hc.strip(&message, StripBoth)?;
-            let network   = hc.get_info("network")?;                              
-            let channel   = hc.get_info("channel")?;
+        let src_lang  = chan_langs.0;
+        let tgt_lang  = chan_langs.1;
+        let message   = word_eol[1].clone();
+        
+        let strip_msg = hc.strip(&message, StripBoth)?;
+        let network   = hc.get_info("network")?;                              
+        let channel   = hc.get_info("channel")?;
 
-            thread::spawn(move || {
-                let msg;
-                let mut emsg = None;
-                let mut is_over_limit = false;
-               
-                match google_translate_free(&strip_msg, &src_lang, &tgt_lang) {
-                    Ok(trans) => { 
-                        msg  = trans;
-                    },
-                    Err(err)  => { 
-                        msg  = err.get_partial_trans().to_string();
-                        emsg = Some(fm!("{IRC_MAGENTA}{}", err));
-                        is_over_limit = err.is_over_limit();
-                    }
+        thread::spawn(move || {
+            let msg;
+            let mut emsg = None;
+            let mut is_over_limit = false;
+            
+            match google_translate_free(&strip_msg, &src_lang, &tgt_lang) {
+                Ok(trans) => { 
+                    msg  = trans;
+                },
+                Err(err)  => { 
+                    msg  = err.get_partial_trans().to_string();
+                    emsg = Some(fm!("{IRC_MAGENTA}{}", err));
+                    is_over_limit = err.is_over_limit();
                 }
-                if let Err(err) = main_thread(
-                    move |hc| -> Result<(), HexchatError> {
-                        if let Some(ctx) = hc.find_context(&network, &channel) {
-                            ctx.command(&fm!("{} {}", cmd, msg))?;
-                            ctx.print(&fm!("{IRC_CYAN}{}", message))?;
-                               
-                            if let Some(emsg) = &emsg {
-                                ctx.print(emsg)?;
-                                if is_over_limit {
-                                    ctx.command("OFFLANG")?;
-                                }
+            }
+            if let Err(err) = main_thread(
+                move |hc| -> Result<(), HexchatError> {
+                    if let Some(ctx) = hc.find_context(&network, &channel) {
+                        ctx.command(&fm!("{} {}", cmd, msg))?;
+                        ctx.print(&fm!("{IRC_CYAN}{}", message))?;
+                            
+                        if let Some(emsg) = &emsg {
+                            ctx.print(emsg)?;
+                            if is_over_limit {
+                                ctx.command("OFFLANG")?;
                             }
-                        } else {
-                            hc.print(&fm!("{IRC_MAGENTA}\
-                                     Failed to get context."));
                         }
-                        Ok(())
+                    } else {
+                        hc.print(&fm!("{IRC_MAGENTA}\
+                                 Failed to get context."));
                     }
-                ).get() {
-                    hc_print_th!("{IRC_MAGENTA}{}", err);
+                    Ok(())
                 }
-            });
-            Some(())
-        };
-        if try_action().is_none() {
-            // If we get here, either `strip()` or `get_info()` returned None.
-            hc.print(&fm!("{IRC_MAGENTA}\
-                     Translator Error: Basic failure retrieving channel \
-                     information, or unable to strip original message."));
-        }
-        Eat::All
+            ).get() {
+                hc_print_th!("{IRC_MAGENTA}{}", err);
+            }
+        });
+        Some(Eat::All)
     } else {
-        Eat::None
+        Some(Eat::None)
     }
 }
 
@@ -348,86 +357,93 @@ fn on_cmd_lsay(hc        : &Hexchat,
 ///
 fn on_recv_message(hc        : &Hexchat, 
                    word      : &[String], 
-                   user_data : &UserData
-                  ) -> Eat 
+                   user_data : &UserData) 
+    -> Eat 
 {
-    if word.len() < 2  || word.last().unwrap() == "~" {
+    if let Some(eat) = try_on_recv_message(hc, word, user_data) {
+        eat
+    } else {
+        // If we get here, either `strip()` or `get_info()` returned None.
+        hc.print(&fm!("{IRC_MAGENTA}\
+                 Translator Error: Basic failure retrieving channel \
+                 information, or unable to strip original message."));
+        Eat::Hexchat
+    }
+}
+
+fn try_on_recv_message(hc        : &Hexchat, 
+                       word      : &[String],
+                       user_data : &UserData)
+    -> Option<Eat> 
+{
+    if word.len() < 2 || word.last().unwrap() == "~" {
         // To avoid recursion, this handler appends the "~" to the end of
         // each `emit_print()` it generates so it can be caught here.
-        return Eat::None;
+        return Some(Eat::None);
     }
     let (event, ref map_udata) = user_data.apply(
-                                    |ud: &(&str, UserData)| {
-                                        (ud.0, ud.1.clone())
-                                    });
+        |ud: &(&str, UserData)| {
+            (ud.0, ud.1.clone())
+        });
+
     if let Some(chan_langs) = get_channel_langs(hc, map_udata) {
-        let try_action = || {
-            let sender    = word[0].clone();
-            let message   = word[1].clone();
-            let msg_type  = event;
-            let mode_char = if word.len() > 2 
-                                 { word[2].clone() } 
-                            else { "".to_string()  };
-            let src_lang  = chan_langs.0;
-            let tgt_lang  = chan_langs.1;
+        let sender    = word[0].clone();
+        let message   = word[1].clone();
+        let msg_type  = event;
+        let mode_char = if word.len() > 2 
+                             { word[2].clone() } 
+                        else { "".to_string()  };
+        let src_lang  = chan_langs.0;
+        let tgt_lang  = chan_langs.1;
+        
+        let strip_msg = hc.strip(&message, StripBoth)?; // "throw"
+        let network   = hc.get_info("network")?;
+        let channel   = hc.get_info("channel")?;
+        
+        thread::spawn(move || {
+            let msg;
+            let mut emsg = None;
+            let mut is_over_limit = false;
             
-            let strip_msg = hc.strip(&message, StripBoth)?; // "throw"
-            let network   = hc.get_info("network")?;
-            let channel   = hc.get_info("channel")?;
-            
-            thread::spawn(move || {
-                let msg;
-                let mut emsg = None;
-                let mut is_over_limit = false;
-                
-                match google_translate_free(&strip_msg, &tgt_lang, &src_lang) {
-                    Ok(trans) => { 
-                        msg = trans;
-                    },
-                    Err(err)  => { 
-                        msg  = err.get_partial_trans().to_string();
-                        emsg = Some(fm!("{IRC_MAGENTA}{}", err));
-                        is_over_limit = err.is_over_limit();
-                    }
+            match google_translate_free(&strip_msg, &tgt_lang, &src_lang) {
+                Ok(trans) => { 
+                    msg = trans;
+                },
+                Err(err)  => { 
+                    msg  = err.get_partial_trans().to_string();
+                    emsg = Some(fm!("{IRC_MAGENTA}{}", err));
+                    is_over_limit = err.is_over_limit();
                 }
-                if let Err(err) = main_thread(
-                    move |hc| -> Result<(), HexchatError> {
-                        if let Some(ctx) = hc.find_context(&network, &channel) {
-                            if !mode_char.is_empty() {
-                                ctx.emit_print(
-                                    msg_type, 
-                                    &[&sender, &msg, &mode_char, "~"])?;
-                            } else {
-                                ctx.emit_print(msg_type, 
-                                               &[&sender, &msg, "~"])?;
-                            }
-                            ctx.print(&fm!("{IRC_CYAN}{}", message))?;
-                            if let Some(emsg) = &emsg { 
-                                ctx.print(emsg)?;
-                                if is_over_limit {
-                                    ctx.command("OFFLANG")?;
-                                }
-                            }
+            }
+            if let Err(err) = main_thread(
+                move |hc| -> Result<(), HexchatError> {
+                    if let Some(ctx) = hc.find_context(&network, &channel) {
+                        if !mode_char.is_empty() {
+                            ctx.emit_print(msg_type, 
+                                           &[&sender, &msg, &mode_char, "~"])?;
                         } else {
-                            hc.print("Failed to get context.");
+                            ctx.emit_print(msg_type, 
+                                           &[&sender, &msg, "~"])?;
                         }
-                        Ok(())
+                        ctx.print(&fm!("{IRC_CYAN}{}", message))?;
+                        if let Some(emsg) = &emsg { 
+                            ctx.print(emsg)?;
+                            if is_over_limit {
+                                ctx.command("OFFLANG")?;
+                            }
+                        }
+                    } else {
+                        hc.print("Failed to get context.");
                     }
-                ).get() {
-                    hc_print_th!("{IRC_MAGENTA}{}", err);
+                    Ok(())
                 }
-            });
-            Some(())
-        };
-        if try_action().is_none() {
-            // If we get here, either `strip()` or `get_info()` returned None.
-            hc.print(&fm!("{IRC_MAGENTA}\
-                     Translator Error: Basic failure retrieving channel \
-                     information, or unable to strip original message."));
-        }
-        Eat::Hexchat
+            ).get() {
+                hc_print_th!("{IRC_MAGENTA}{}", err);
+            }
+        });
+        Some(Eat::Hexchat)
     } else {
-        Eat::None
+        Some(Eat::None)
     }
 }
 
@@ -444,8 +460,9 @@ fn on_recv_message(hc        : &Hexchat,
 ///
 fn google_translate_free(text   : &str, 
                          source : &str, 
-                         target : &str
-                        ) -> Result<String, TranslationError> 
+                         target : &str)
+
+    -> Result<String, TranslationError> 
 {
     // Optimizing the regex and agent using lazy_static wouldn't noticeably
     // improve performance for the user. Plus, static resources are very hard to
@@ -539,8 +556,9 @@ impl From<&SingleTranslationError> for SingleTranslationError {
 fn translate_single(sentence : &str, 
                     agent    : &ureq::Agent,
                     source   : &str,
-                    target   : &str
-                   ) -> Result<String, SingleTranslationError>
+                    target   : &str) 
+
+    -> Result<String, SingleTranslationError>
 {
     use SingleTranslationError::*;
     use serde_json::Result as SResult;
@@ -596,8 +614,8 @@ fn translate_single(sentence : &str,
 fn on_cmd_listlang(hc        : &Hexchat, 
                    word      : &[String], 
                    _word_eol : &[String], 
-                   _userdata : &UserData
-                  ) -> Eat 
+                   _userdata : &UserData) 
+    -> Eat 
 {
     if word.len() == 1 {
         hc.print("");
