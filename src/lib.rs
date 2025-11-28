@@ -69,6 +69,7 @@ fn plugin_info() -> PluginInfo {
 /// Called when the plugin is loaded.
 ///
 fn plugin_init(hc: &Hexchat) -> i32 {
+    use Priority::Norm;
 
     hc.print("Language Translator loaded");
     
@@ -78,23 +79,22 @@ fn plugin_init(hc: &Hexchat) -> i32 {
     
     let lsay_udata = UserData::boxed(("SAY", map_udata.clone()));
     let lme_udata  = UserData::boxed(("ME", map_udata.clone()));
-    
+
     // Register the commands.
-    
     hc.hook_command(
-        "LISTLANG", Priority::Norm, on_cmd_listlang, LISTLANG_HELP, NoData);
+        "LISTLANG", Norm, on_cmd_listlang, LISTLANG_HELP, NoData);
         
     hc.hook_command(
-        "SETLANG", Priority::Norm, on_cmd_setlang,   SETLANG_HELP, map_udata
-                                                                   .clone());
-    hc.hook_command(
-        "OFFLANG", Priority::Norm, on_cmd_offlang,   OFFLANG_HELP, map_udata
-                                                                   .clone());
-    hc.hook_command(
-        "LSAY",    Priority::Norm, on_cmd_lsay,      LSAY_HELP,    lsay_udata);
+        "SETLANG", Norm, on_cmd_setlang, SETLANG_HELP, map_udata.clone());
 
     hc.hook_command(
-        "LME",     Priority::Norm, on_cmd_lsay,      LME_HELP,     lme_udata);
+        "OFFLANG", Norm, on_cmd_offlang, OFFLANG_HELP, map_udata.clone());
+
+    hc.hook_command(
+        "LSAY", Norm, on_cmd_lsay, LSAY_HELP, lsay_udata);
+
+    hc.hook_command(
+        "LME", Norm, on_cmd_lsay, LME_HELP, lme_udata);
 
 
     // Register the handler for all the interesting text events.
@@ -108,7 +108,7 @@ fn plugin_init(hc: &Hexchat) -> i32 {
     {
         let event_udata = UserData::boxed((*event, map_udata.clone()));
         
-        hc.hook_print(event, Priority::Norm, on_recv_message, event_udata);
+        hc.hook_print(event, Norm, on_recv_message, event_udata);
     }
 
     1
@@ -577,12 +577,9 @@ fn translate_single(sentence : &str,
     let url     = fm!("https://translate.googleapis.com/\
                       translate_a/single\
                       ?client=gtx\
-                      &sl={source_lang}\
-                      &tl={target_lang}\
-                      &dt=t&q={source_text}",
-                      source_lang = source,
-                      target_lang = target,
-                      source_text = escaped);
+                      &sl={source}\
+                      &tl={target}\
+                      &dt=t&q={escaped}");
                                     
     let tr_rsp = agent.get(&url).call()         .map_err(|_| &ERRORS[1])?;
     
